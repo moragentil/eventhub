@@ -35,3 +35,4 @@ Aplicación web para venta de entradas utilizada en la cursada 2025 de Ingenier�
 `Mora Gentil`
 `Martín Eliseche`
 `Agustin Nicolas Ferrari`
+`Agustín Gutiérrez Mora`
