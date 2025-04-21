@@ -33,3 +33,4 @@ Aplicación web para venta de entradas utilizada en la cursada 2025 de Ingenier�
 ## Integrantes del grupo
 
 `Mora Gentil`
+`Martín Eliseche`
