@@ -1,4 +1,6 @@
 import datetime
+from datetime import datetime as dt
+from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
@@ -143,11 +145,49 @@ def refund_request_form(request, id=None):
     if not user.is_organizer:
         return redirect("events")
     
+    refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
+    
     if request.method == "POST":
+
         approved = request.POST.get("approved") is not None
         ticket_code = request.POST.get("ticket_code")
         reason = request.POST.get("reason")
-        approval_date = request.POST.get("approval_date")
+        approval_date_str = request.POST.get("approval_date")
+        
+
+        errors= []
+
+        #if not Ticket.objects.filter(ticket_code=ticket_code).exists():
+        #    errors.append("El ticket con el código ingresado no existe")
+        # Descomentar cuando se implemente el modelo de Ticket
+
+        if approval_date_str:
+            try:
+                approval_date = dt.strptime(approval_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                errors.append("Fecha inválida. Debe tener formato AAAA-MM-DD.")
+        else:
+            approval_date = None
+
+        if len(reason.split()) < 1:
+            errors.append("El motivo es requerido")
+        
+        if approved is False and approval_date is not None:
+            errors.append("La fecha de aprobación no puede ser ingresada si la solicitud no fue aprobada")
+        elif approved is True and approval_date is None:
+            errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
+
+        if refund_request is None and RefundRequest.objects.filter(ticket_code=ticket_code).exists():
+            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(
+                request,
+                "app/refund_request_form.html",
+                {"refund_request": refund_request}
+            )
 
         if id is None:
             RefundRequest.new(user, approved, approval_date, ticket_code, reason)
@@ -156,8 +196,6 @@ def refund_request_form(request, id=None):
             refund_request.update(approved, approval_date, reason)
 
         return redirect("refund_requests")
-
-    refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
 
     return render(
         request,
