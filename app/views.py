@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Event, User
+from .models import Event, User, RefundRequest
 
 
 def register(request):
@@ -125,3 +125,62 @@ def event_form(request, id=None):
         "app/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
+
+
+@login_required
+def refund_requests(request):
+    refund_requests = RefundRequest.objects.filter(user=request.user).order_by("created_at")
+    return render(
+        request,
+        "app/refund_requests.html",
+        {"refund_requests": refund_requests, "user_is_organizer": request.user.is_organizer},
+    )
+
+@login_required
+def refund_request_form(request, id=None):
+    user = request.user
+
+    if not user.is_organizer:
+        return redirect("events")
+    
+    if request.method == "POST":
+        approved = request.POST.get("approved") is not None
+        ticket_code = request.POST.get("ticket_code")
+        reason = request.POST.get("reason")
+        approval_date = request.POST.get("approval_date")
+
+        if id is None:
+            RefundRequest.new(user, approved, approval_date, ticket_code, reason)
+        else:
+            refund_request = get_object_or_404(RefundRequest, pk=id)
+            refund_request.update(approved, approval_date, reason)
+
+        return redirect("refund_requests")
+
+    refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
+
+    return render(
+        request,
+        "app/refund_request_form.html",
+        {"refund_request": refund_request},
+    )
+
+@login_required
+def refund_request_delete(request, id):
+    user = request.user
+    if not user.is_organizer:
+        return redirect("events")
+
+    refund_request = get_object_or_404(RefundRequest, pk=id)
+    if request.method == "POST":
+        refund_request.delete()
+    return redirect("refund_requests")
+
+@login_required
+def refund_request_detail(request, id):
+    user = request.user
+    if not user.is_organizer:
+       return redirect("events")
+
+    refund_request = get_object_or_404(RefundRequest, pk=id)
+    return render(request, "app/refund_request_detail.html", {"refund_request": refund_request})
