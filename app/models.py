@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -73,3 +74,34 @@ class Event(models.Model):
         self.organizer = organizer or self.organizer
 
         self.save()
+
+class RefundRequest(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refund_requests")
+    approved = models.BooleanField(default=False)
+    approval_date = models.DateTimeField(null=True, blank=True)
+    ticket_code = models.CharField(max_length=100)
+    reason = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Refund request for {self.ticket_code} by {self.user.username}"
+    
+    @classmethod
+    def new(cls, user, approved, approval_date, ticket_code, reason):
+        created_at = timezone.now()
+        RefundRequest.objects.create(
+            user=user,
+            approved=approved,
+            approval_date=approval_date,
+            ticket_code=ticket_code,
+            reason=reason,
+            created_at=created_at
+        )
+        return True, None
+    
+    def update(self, approved=None, approval_date=None, reason=None):
+        self.approved = approved if approved is not None else self.approved
+        self.approval_date = approval_date if approval_date is not None else self.approval_date
+        self.reason = reason if reason is not None else self.reason
+        self.save()
+
