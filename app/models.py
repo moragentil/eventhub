@@ -104,3 +104,43 @@ class Ticket(models.Model):
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
 
+    @classmethod
+    def validate(cls, quantity, type, event):
+        errors = {}
+
+        if quantity is None:
+            errors["quantity"] = "La cantidad es requerida."
+        elif not isinstance(quantity, int):
+            errors["quantity"] = "La cantidad debe ser un número entero."
+        elif quantity <= 0:
+            errors["quantity"] = "La cantidad debe ser un número mayor que cero."
+
+
+        if type is None:
+            errors["type"] = "Debe seleccionar un tipo de Ticket."
+        elif type not in TicketType.values:
+            errors["type"] = "Tipo de Ticket no válido."
+
+        if event is None:
+            errors["event"] = "Debe seleccionar un Evento."
+
+
+        return errors
+
+    @classmethod
+    def new(cls, quantity, type, user, event):
+        errors = Ticket.validate(quantity, type, event)
+
+        if errors:
+            return False, errors
+
+        ticket = cls.objects.create(
+            buy_date = timezone.now(),
+            ticket_code = code_generator(),
+            quantity = quantity,
+            type = type,
+            user = user,
+            event = event
+        )
+
+        return True, ticket
