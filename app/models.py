@@ -1,5 +1,8 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+import string
+import secrets
 
 
 class User(AbstractUser):
@@ -73,3 +76,31 @@ class Event(models.Model):
         self.organizer = organizer or self.organizer
 
         self.save()
+
+
+def code_generator(length=100):
+    characters = string.ascii_letters + string.digits
+    while True:
+        code = ''.join(secrets.choice(characters) for _ in range(length))
+        if not Ticket.objects.filter(ticket_code=code).exists():
+            return code
+
+class TicketType(models.TextChoices):
+    GENERAL = "General", "General"
+    VIP = "Vip", "VIP"
+
+class Ticket(models.Model):
+    buy_date = models.DateField(auto_now_add=True)
+    ticket_code = models.CharField(max_length=100, unique=True, default=code_generator)
+    quantity = models.IntegerField(null=False, default=1)
+    type = models.CharField(
+        max_length=10,
+        choices=TicketType.choices,
+        default=TicketType.GENERAL,
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
+
+    def __str__(self):
+        return f"Ticket for {self.event.title} by {self.user.username}"
+
