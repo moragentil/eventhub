@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Event, User
+from .models import Event, User, Ticket
 
 
 def register(request):
@@ -125,3 +125,66 @@ def event_form(request, id=None):
         "app/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
+
+
+
+@login_required
+def ticket_create(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+
+    if request.method == "POST":
+        quantity = request.POST.get("quantity")
+        type = request.POST.get("type")
+
+        success, result = Ticket.new(
+            quantity=int(quantity),
+            type=type,
+            user=request.user,
+            event=event,
+        )
+
+        if success:
+            return redirect("event_detail", id=event.pk)
+        else:
+            return render(
+                request,
+                "app/ticket_form.html",
+                {"errors": result, "event": event, "data": request.POST},
+            )
+
+    return render(request, "app/ticket_form.html", {"event": event})
+
+
+@login_required
+def ticket_update(request, ticket_id):
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+
+    if request.method == "POST":
+        quantity = request.POST.get("quantity")
+
+        success, result = Ticket.update(ticket_id, quantity=int(quantity))
+
+        if success:
+            return redirect("event_detail", id=ticket.event.pk)
+        else:
+            return render(
+                request,
+                "app/ticket_form.html",
+                {"errors": result, "ticket": ticket, "data": request.POST},
+            )
+
+    return render(request, "app/ticket_form.html", {
+                                                    "ticket": ticket,
+                                                    "event": ticket.event
+                                                    })
+
+
+@login_required
+def ticket_delete(request, ticket_id):
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+
+    if request.method == "POST":
+        ticket.delete()
+        return redirect("event_detail", id=ticket.event.pk)
+
+    return redirect("event_detail", id=ticket.event.pk)
