@@ -144,3 +144,40 @@ class Ticket(models.Model):
         )
 
         return True, ticket
+
+    @classmethod
+    def update(cls, ticket_id, quantity=None):
+        try:
+            ticket = cls.objects.get(id=ticket_id)
+            
+            errors = {}
+
+            if quantity is not None:
+                if not isinstance(quantity, int):
+                    errors["quantity"] = "La cantidad debe ser un número entero."
+                elif quantity <= 0:
+                    errors["quantity"] = "La cantidad debe ser un número mayor a cero."
+                else:
+                    ticket.quantity = quantity
+            
+            if errors:
+                return False, errors
+            
+            ticket.save()
+            return True, ticket
+
+        except cls.DoesNotExist:
+            return False, {"ticket": "Ticket no encontrado."}
+        
+    
+    @classmethod 
+    def delete_ticket(cls, ticket_id):
+        try:
+            ticket = cls.objects.get(id=ticket_id)
+            ticket.delete()
+            return True, ticket
+        
+        except cls.DoesNotExist:
+            return False, {"ticket": "Ticket no encontrado."}
+
+
