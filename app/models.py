@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -73,3 +74,22 @@ class Event(models.Model):
         self.organizer = organizer or self.organizer
 
         self.save()
+
+class Notification(models.Model):
+    PRIORITY_CHOICES = [
+        (0, "LOW"),
+        (1, "MEDIUM"),
+        (2, "HIGH"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=200)
+    message = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    priority = models.IntegerField(choices=PRIORITY_CHOICES, default=0)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notification for {self.title} - {self.priority} by {self.user.username}"
+    
+    
