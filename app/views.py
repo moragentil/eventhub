@@ -201,3 +201,8 @@ def ticket_update(request, ticket_id):
                                                     "ticket": ticket,
                                                     "event": ticket.event
                                                     })
+
+@login_required
+def user_ticket_list(request):
+    tickets = Ticket.objects.filter(user=request.user)
+    return render(request, "app/user_ticket_list.html", {"tickets": tickets})
