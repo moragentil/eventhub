@@ -36,3 +36,4 @@ Aplicación web para venta de entradas utilizada en la cursada 2025 de Ingenier�
 `Martín Eliseche`
 `Agustin Nicolas Ferrari`
 `Agustín Gutiérrez Mora`
+`Lorenzo Bellomo`
