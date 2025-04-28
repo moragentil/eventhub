@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from .models import Event, User, Ticket
 from .decorators import organizer_required
+from django.contrib import messages
 
 def register(request):
     if request.method == "POST":
@@ -160,10 +161,16 @@ def ticket_delete(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
 
     if request.method == "POST":
+        referer = request.META.get('HTTP_REFERER', '')
+        if 'update' in referer or 'tickets/{}/'.format(ticket_id) in referer:
+            ticket.delete()
+            return redirect('user_ticket_list')
+        
         ticket.delete()
-        return redirect("event_detail", id=ticket.event.pk)
+        return redirect(referer or 'event_list')
 
-    return redirect("event_detail", id=ticket.event.pk)
+    return redirect('event_list')
+
 
 
 @login_required
@@ -171,6 +178,7 @@ def ticket_delete(request, ticket_id):
 def organizer_ticket_list(request):
     tickets = Ticket.objects.all()
     return render(request, "app/organizer_ticket_list.html", {"tickets": tickets})
+
 
 @login_required
 def ticket_detail(request, ticket_id):
