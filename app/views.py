@@ -133,6 +133,10 @@ def event_form(request, id=None):
 def ticket_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
 
+    if event.scheduled_at < timezone.now():
+        messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
+        return redirect("event_detail", id=event.pk)
+
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
