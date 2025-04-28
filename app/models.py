@@ -90,7 +90,7 @@ class TicketType(models.TextChoices):
     VIP = "Vip", "VIP"
 
 class Ticket(models.Model):
-    buy_date = models.DateField(auto_now_add=True)
+    buy_date = models.DateTimeField(auto_now_add=True)
     ticket_code = models.CharField(max_length=50, unique=True, default=code_generator)
     quantity = models.IntegerField(null=False, default=1)
     type = models.CharField(
