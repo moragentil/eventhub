@@ -7,7 +7,6 @@ from django.utils import timezone
 from .models import Event, User, Ticket
 from .decorators import organizer_required
 
-
 def register(request):
     if request.method == "POST":
         email = request.POST.get("email")
@@ -189,7 +188,10 @@ def ticket_update(request, ticket_id):
         success, result = Ticket.update(ticket_id, quantity=int(quantity))
 
         if success:
-            return redirect("ticket_detail", id=ticket.event.pk)
+            if request.user.is_organizer:
+                return redirect("organizer_ticket_list")
+            else:
+                return redirect("user_ticket_list")
         else:
             return render(
                 request,

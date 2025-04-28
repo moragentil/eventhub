@@ -12,6 +12,7 @@
             <p><strong>Tipo:</strong> {{ ticket.type }}</p>
             <p><strong>Evento:</strong> {{ ticket.event.title }}</p>
             <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date }}</p>
+            <p><strong>Hora de Compra:</strong> {{ ticket.buy_date|date:"H:i" }}</p>
             <p><strong>Comprador:</strong> {{ ticket.user.username }}</p>
         </div>
     </div>
