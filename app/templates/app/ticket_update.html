@@ -2,17 +2,18 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">Detalles del Ticket</h2>
+    <h2 class="mb-4">Detalles de Entrada</h2>
 
     <div class="card">
         <div class="card-body">
-            <h5 class="card-title">Código: {{ ticket.ticket_code }}</h5>
+            <p><strong>Código:</strong> {{ ticket.ticket_code }}</p>
             <p><strong>Cantidad:</strong> {{ ticket.quantity }}</p>
             <p><strong>Tipo:</strong> {{ ticket.get_type_display }}</p>
             <p><strong>Evento:</strong> {{ ticket.event.title }}</p>
-            <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date }}</p>
+            <p><strong>Descripción Evento:</strong> {{ ticket.event.description }}</p>
+            <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date|date:"d/m/Y" }}</p>
             <p><strong>Hora de Compra:</strong> {{ ticket.buy_date|date:"H:i" }}</p>
-            <p><strong>Comprador:</strong> {{ ticket.user.username }}</p>
+            <p><strong>Usuario:</strong> {{ ticket.user.username }}</p>
         </div>
     </div>
 

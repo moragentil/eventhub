@@ -2,15 +2,15 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4">Mis Tickets</h2>
+    <h2 class="mb-4">Mis Entradas</h2>
     <table class="table table-bordered text-center">
         <thead class="thead-light">
             <tr>
-                <th scope="col">Código de Ticket</th>
+                <th scope="col">Código</th>
                 <th scope="col">Cantidad</th>
                 <th scope="col">Tipo</th>
                 <th scope="col">Evento</th>
-                <th scope="col">Fecha de Compra</th>
+                <th scope="col">Fecha</th>
                 <th scope="col">Acciones</th>
             </tr>
         </thead>
@@ -21,7 +21,7 @@
                     <td>{{ ticket.quantity }}</td>
                     <td>{{ ticket.type }}</td>
                     <td>{{ ticket.event.title }}</td>
-                    <td>{{ ticket.buy_date }}</td>
+                    <td>{{ ticket.buy_date|date:"d/m/Y H:i" }}</td>
                     <td>
 
                         <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-info btn-sm" title="Ver">

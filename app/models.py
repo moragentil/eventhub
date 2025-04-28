@@ -87,7 +87,7 @@ def code_generator(length=50):
 
 class TicketType(models.TextChoices):
     GENERAL = "General", "General"
-    VIP = "Vip", "VIP"
+    VIP = "VIP", "VIP"
 
 class Ticket(models.Model):
     buy_date = models.DateTimeField(auto_now_add=True)

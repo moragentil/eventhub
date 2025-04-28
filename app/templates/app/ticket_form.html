@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4 text-center">Comprar Ticket para {{ event.title }}</h1>
+
+    {% if errors %}
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                {% for field, error in errors.items %}
+                    <li><strong>{{ field }}:</strong> {{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-group mb-3">
+            <label for="quantity">Cantidad:</label>
+            <input 
+                type="number" 
+                id="quantity" 
+                name="quantity" 
+                min="1" 
+                value="{{ data.quantity|default:'' }}" 
+                class="form-control"
+                required
+            >
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="type">Tipo de Ticket:</label>
+            <select id="type" name="type" class="form-control" required>
+                <option value="">Seleccione un tipo</option>
+                <option value="General" {% if data.type == "General" %}selected{% endif %}>General</option>
+                <option value="VIP" {% if data.type == "VIP" %}selected{% endif %}>VIP</option>
+            </select>
+        </div>
+
+        <div class="text-start">
+            <button type="submit" class="btn btn-primary">Comprar</button>
+        </div>
+        </form>
+        
+        <div class="text-start mt-3">
+            <a href="{% url 'event_detail' id=event.id %}" class="btn btn-secondary">Volver al Evento</a>
+        </div>
+</div>
+{% endblock %}
