@@ -78,7 +78,7 @@ class Event(models.Model):
         self.save()
 
 
-def code_generator(length=100):
+def code_generator(length=50):
     characters = string.ascii_letters + string.digits
     while True:
         code = ''.join(secrets.choice(characters) for _ in range(length))
@@ -91,7 +91,7 @@ class TicketType(models.TextChoices):
 
 class Ticket(models.Model):
     buy_date = models.DateField(auto_now_add=True)
-    ticket_code = models.CharField(max_length=100, unique=True, default=code_generator)
+    ticket_code = models.CharField(max_length=50, unique=True, default=code_generator)
     quantity = models.IntegerField(null=False, default=1)
     type = models.CharField(
         max_length=10,
