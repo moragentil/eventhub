@@ -276,3 +276,40 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
+        
+class Venue(models.Model):
+    name = models.CharField(max_length=200)
+    address = models.CharField(max_length=200)
+    city = models.CharField(max_length=100)
+    capacity = models.IntegerField()
+    contact = models.CharField(max_length=100)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="venues")
+
+    def __str__(self):
+        return f"Venue: {self.name}"
+
+    @classmethod
+    def validate(cls, name, address, city, capacity, contact, event):
+        errors = {}
+
+        if name == "":
+            errors["name"] = "Por favor ingrese un nombre"
+
+        if address == "":
+            errors["address"] = "Por favor ingrese una direccion"
+        
+        if city == "":
+            errors["city"] = "Por favor ingrese una ciudad"
+
+        if capacity is None:
+            errors["capacity"] = "La capacidad es requerida."
+        elif capacity <= 0:
+            errors["capacity"] = "La capacidad debe ser un número mayor que cero."
+
+        if contact == "":
+            errors["contact"] = "Por favor ingrese un contacto"   
+        
+        if event is None:
+            errors["event"] = "Debe seleccionar un Evento."
+
+        return errors    
