@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal
 import string
 import secrets
 
@@ -37,12 +38,14 @@ class Event(models.Model):
     organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="organized_events")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    price_general = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('50.00'))
+    price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip):
         errors = {}
 
         if title == "":
@@ -51,11 +54,24 @@ class Event(models.Model):
         if description == "":
             errors["description"] = "Por favor ingrese una descripcion"
 
+        if price_general is None:
+            errors["price_general"] = "El precio general es requerido."
+        elif price_general <= 0:
+            errors["price_general"] = "El precio general debe ser un número mayor que cero."
+
+        if price_vip is None:
+            errors["price_vip"] = "El precio VIP es requerido."
+        elif price_vip <= 0:
+            errors["price_vip"] = "El precio VIP debe ser un número mayor que cero."
+
+        if price_vip <= price_general:
+            errors["price_vip"] = "El precio VIP debe ser un número mayor que el general"
+        
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer):
-        errors = Event.validate(title, description, scheduled_at)
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip):
+        errors = Event.validate(title, description, scheduled_at, price_general, price_vip)
 
         if len(errors.keys()) > 0:
             return False, errors
@@ -65,17 +81,37 @@ class Event(models.Model):
             description=description,
             scheduled_at=scheduled_at,
             organizer=organizer,
+            price_general=price_general,
+            price_vip=price_vip
         )
 
         return True, None
 
-    def update(self, title, description, scheduled_at, organizer):
-        self.title = title or self.title
-        self.description = description or self.description
-        self.scheduled_at = scheduled_at or self.scheduled_at
-        self.organizer = organizer or self.organizer
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip):
+        errors = self.validate(title or self.title, description or self.description,
+                            scheduled_at or self.scheduled_at,
+                            price_general or self.price_general,
+                            price_vip or self.price_vip)
+
+        if errors:
+            return False, errors
+
+        if title is not None:
+            self.title = title
+        if description is not None:
+            self.description = description
+        if scheduled_at is not None:
+            self.scheduled_at = scheduled_at
+        if organizer is not None:
+            self.organizer = organizer
+        if price_general is not None:
+            self.price_general = price_general
+        if price_vip is not None:
+            self.price_vip = price_vip
 
         self.save()
+        return True, None
+
 
 
 def code_generator(length=20):

@@ -14,7 +14,8 @@
 
             <div class="card">
                 <div class="card-body">
-                    <form action="{% url 'event_form' %}" method="POST">
+                    <form method="POST" action="{% if editing %}{% url 'event_edit' event.id %}{% else %}{% url 'event_form' %}{% endif %}">
+
                         {% csrf_token %}
                         <div class="vstack gap-3">
                             <div>
@@ -57,8 +58,42 @@
                                         name="time" />
                                 </div>
                             </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="price_general" class="form-label">Precio General</label>
+                                    <input
+                                        class="form-control"
+                                        id="price_general"
+                                        required
+                                        type="number"
+                                        step="0.01"
+                                        min="1"
+                                        value="{{ event.price_general }}"
+                                        name="price_general" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="price_vip" class="form-label">Precio VIP</label>
+                                    <input
+                                        class="form-control"
+                                        id="price_vip"
+                                        required
+                                        type="number"
+                                        step="0.01"
+                                        min="1"
+                                        value="{{ event.price_vip }}"
+                                        name="price_vip" />
+                                </div>
+                            </div>
+
                             <div>
-                                <button type="submit" class="btn btn-primary">Crear Evento</button>
+                                <button type="submit" class="btn btn-primary">
+                                    {% if event.id %}
+                                        Actualizar Evento
+                                    {% else %}
+                                        Crear Evento
+                                    {% endif %}
+                                </button>
                             </div>
                         </div>
                     </form>
@@ -67,4 +102,5 @@
         </div>
     </div>
 </div>
+<br><br>
 {% endblock %}

@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from decimal import Decimal
 
 from .models import Event, User, Ticket, TicketType
 from .decorators import organizer_required
@@ -102,6 +103,8 @@ def event_form(request, id=None):
         description = request.POST.get("description")
         date = request.POST.get("date")
         time = request.POST.get("time")
+        price_general = request.POST.get("price_general")
+        price_vip = request.POST.get("price_vip")
 
         [year, month, day] = date.split("-")
         [hour, minutes] = time.split(":")
@@ -110,11 +113,27 @@ def event_form(request, id=None):
             datetime.datetime(int(year), int(month), int(day), int(hour), int(minutes))
         )
 
+        price_general = Decimal(price_general)
+        price_vip = Decimal(price_vip)
+
         if id is None:
-            Event.new(title, description, scheduled_at, request.user)
+            Event.objects.create(
+                title=title, 
+                description=description, 
+                scheduled_at=scheduled_at, 
+                organizer=request.user, 
+                price_general=price_general, 
+                price_vip=price_vip
+            )
         else:
             event = get_object_or_404(Event, pk=id)
-            event.update(title, description, scheduled_at, request.user)
+            event.title = title
+            event.description = description
+            event.scheduled_at = scheduled_at
+            event.organizer = request.user
+            event.price_general = price_general
+            event.price_vip = price_vip
+            event.save()  
 
         return redirect("events")
 
@@ -127,7 +146,6 @@ def event_form(request, id=None):
         "app/event/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
-
 
 
 @login_required
