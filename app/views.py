@@ -126,6 +126,7 @@ def event_form(request, id=None):
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
 
+
 @login_required
 def notifications(request):
     notifications = Notification.objects.filter(user=request.user).order_by("-created_at")
@@ -162,19 +163,72 @@ def notification_form(request, id=None):
     if not user.is_organizer:
         return redirect("notifications")
     
+    errors = {}
     if request.method == "POST":
-        title = request.POST.get("title")
-        message = request.POST.get("message")
+        title = request.POST.get("title", "").strip()
+        message = request.POST.get("message", "").strip()
         priority = request.POST.get("priority")
+        user_ids = request.POST.getlist("user_ids")
+
+        if title == "":
+            errors["title"] = "Por favor ingrese un titulo"
+        elif len(title) > 100:
+            errors["title"] = "El titulo no puede tener mas de 100 caracteres"
+        
+        if message == "":
+            errors["message"] = "Por favor ingrese un mensaje"
+        elif len(message) > 500:
+            errors["message"] = "El mensaje no puede tener mas de 500 caracteres"
+        
+        if not user_ids:
+            errors["user_ids"] = "Por favor seleccione al menos un usuario"
+
+        if errors:
+            notification = {}
+            if id:
+                notification = get_object_or_404(Notification, pk=id)
+            return render(
+                request,
+                "app/notification_form.html",
+                {
+                    "notification": notification,
+                    "priorities": Notification.PRIORITY_CHOICES,
+                    "user_is_organizer": request.user.is_organizer,
+                    "users": User.objects.all(),
+                    "errors": errors,
+                },
+            )
 
         if id is None:
-            Notification.new(user, title, message, priority)
+            users_ids = request.POST.getlist("user_ids")
+            users = User.objects.filter(id__in=users_ids)
+
+            success, result = Notification.new(users, title, message, priority)
+            if not success:
+                return render(
+                    request,
+                    "app/notification_form.html",
+                    {
+                        "notification": {},
+                        "priorities": Notification.PRIORITY_CHOICES,
+                        "user_is_organizer": request.user.is_organizer,
+                        "errors": result,
+                    },
+                )
+            notification = result
         else:
             notification = get_object_or_404(Notification, pk=id)
             notification.update(title, message, priority)
+            notification.users.set(user_ids)
+            notification.save()
+
+            user_ids = request.POST.getlist("user_ids")
+            notification.users.set(user_ids)
+            notification.save()
 
         return redirect("notifications")
     
+    users = User.objects.all()
     notification = {}
     if id is not None:
         notification = get_object_or_404(Notification, pk=id)
@@ -184,11 +238,10 @@ def notification_form(request, id=None):
         "app/notification_form.html",
         {
             "notification": notification,
-            "user_is_organizer": request.user.is_organizer,
-        },
-        {
+            "users": users,
             "priorities": Notification.PRIORITY_CHOICES,
-        },
+            "user_is_organizer": request.user.is_organizer,
+        }
     )
 
 @login_required

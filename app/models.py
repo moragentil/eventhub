@@ -82,7 +82,7 @@ class Notification(models.Model):
         ("HIGH", "High"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    user = models.ManyToManyField(User, on_delete=models.CASCADE, related_name="notifications")
     title = models.CharField(max_length=200)
     message = models.TextField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -109,20 +109,23 @@ class Notification(models.Model):
         return errors
 
     @classmethod
-    def new(cls, user, title, message, priority="LOW"):
+    def new(cls, users, title, message, priority="LOW"):
         errors = Notification.validate(title, message)
 
         if errors:
             return False, errors
 
         notification = cls.objects.create(
-            user=user,
             title=title,
             message=message,
             created_at=timezone.now(),
             priority=priority,
             is_read=False,
         )
+        
+        notification.users.set(users)
+        notification.save()
+
         return True, notification
     
     @classmethod
