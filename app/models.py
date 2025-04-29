@@ -30,6 +30,53 @@ class User(AbstractUser):
 
         return errors
 
+class Venue(models.Model):
+    name = models.CharField(max_length=100)
+    address = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    capacity = models.IntegerField()
+    contact = models.CharField(max_length=100, null=True, blank=True)
+
+    def __str__(self):
+        return f"Venue: {self.name}"
+
+    @classmethod
+    def validate(cls, capacity):
+        errors = {}
+
+        if capacity <= 0:
+            errors["capacity"] = "La capacidad debe ser un número mayor que cero."
+            
+        return errors 
+
+    @classmethod
+    def new(cls, name, address, city, capacity, contact=None):
+        errors = Venue.validate(capacity)
+
+        if len(errors.keys()) > 0:
+            return False, errors
+
+        Venue.objects.create(
+            name=name,
+            address=address,
+            city=city,
+            capacity=capacity,
+            contact=contact,
+        )
+        return True, None
+    
+    def update(self, name=None, address=None, city=None, capacity=None, contact=None):
+        errors = Venue.validate(capacity)
+        if errors:
+            return False, errors
+        
+        self.name = name or self.name
+        self.address = address or self.address
+        self.city = city or self.city
+        self.capacity = capacity or self.capacity
+        self.contact = contact or self.contact
+        self.save()
+        return True, None
 
 class Event(models.Model):
     title = models.CharField(max_length=200)
@@ -38,6 +85,7 @@ class Event(models.Model):
     organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="organized_events")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
 
     def __str__(self):
         return self.title
@@ -276,40 +324,4 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
-        
-class Venue(models.Model):
-    name = models.CharField(max_length=200)
-    address = models.CharField(max_length=200)
-    city = models.CharField(max_length=100)
-    capacity = models.IntegerField()
-    contact = models.CharField(max_length=100)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="venues")
-
-    def __str__(self):
-        return f"Venue: {self.name}"
-
-    @classmethod
-    def validate(cls, name, address, city, capacity, contact, event):
-        errors = {}
-
-        if name == "":
-            errors["name"] = "Por favor ingrese un nombre"
-
-        if address == "":
-            errors["address"] = "Por favor ingrese una direccion"
-        
-        if city == "":
-            errors["city"] = "Por favor ingrese una ciudad"
-
-        if capacity is None:
-            errors["capacity"] = "La capacidad es requerida."
-        elif capacity <= 0:
-            errors["capacity"] = "La capacidad debe ser un número mayor que cero."
-
-        if contact == "":
-            errors["contact"] = "Por favor ingrese un contacto"   
-        
-        if event is None:
-            errors["event"] = "Debe seleccionar un Evento."
-
-        return errors    
+           

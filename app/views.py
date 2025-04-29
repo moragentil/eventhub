@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Event, User, RefundRequest
+from .models import Event, User, RefundRequest, Venue
 
 
 def register(request):
@@ -222,3 +222,85 @@ def refund_request_detail(request, id):
 
     refund_request = get_object_or_404(RefundRequest, pk=id)
     return render(request, "app/refund_request_detail.html", {"refund_request": refund_request})
+
+@login_required
+def venue(request):
+    venues = Venue.objects.all().order_by("name")
+    return render(
+        request,
+        "app/venue/venue.html",
+        {"venues": venues, "user_is_organizer": request.user.is_organizer},
+    )
+
+@login_required
+def venue_form(request, id=None):
+    user = request.user
+    if not user.is_organizer:
+        return redirect("events")
+    
+    if request.method == "POST":
+        name = request.POST.get("name")
+        address = request.POST.get("address")
+        city = request.POST.get("city")
+        contact = request.POST.get("contact")
+
+        capacity_raw = request.POST.get("capacity")
+        try:
+            capacity = int(capacity_raw)
+        except (TypeError, ValueError):
+            capacity = None
+
+        if id is None:
+            success, errors = Venue.new(name, address, city, capacity, contact)
+            if not success:
+                if errors:
+                    for field, error in errors.items():
+                        messages.error(request, f"{field}: {error}")
+                    return render(request, "app/venue/venue_form.html", {
+                        "venue": None,
+                })
+        else:
+            venue = get_object_or_404(Venue, pk=id)
+            success, errors = venue.update(name, address, city, capacity, contact)
+            if not success:
+                if errors:
+                    for field, error in errors.items():
+                        messages.error(request, f"{field}: {error}")
+                    return render(request, "app/venue/venue_form.html", {
+                        "venue": venue,
+                    })
+
+        return redirect("venue")
+
+    return render(
+        request,
+        "app/venue/venue_form.html",
+        {"venue": get_object_or_404(Venue, pk=id) if id else None},
+    )
+
+@login_required
+def venue_delete(request, id):
+    user = request.user
+    if not user.is_organizer:
+        return redirect("events")
+    
+    if request.method == "POST":
+        venue = get_object_or_404(Venue, pk=id)
+        if not Event.objects.filter(venue=venue).exists():
+            venue.delete()
+            messages.success(request, "El lugar ha sido eliminado correctamente.")
+        else:
+            messages.error(request, "No se puede eliminar el lugar porque tiene eventos asociados.")
+            return render(
+                request,
+                "app/venue/venue.html",
+                {"error": "No se puede eliminar el lugar porque tiene eventos asociados."}
+            )
+        
+    return redirect("venue")
+
+@login_required
+def venue_detail(request, id):
+    venue = get_object_or_404(Venue, pk=id)
+    return render(request, "app/venue/venue_detail.html", {"venue": venue})
+

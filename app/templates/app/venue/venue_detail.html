@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>Detalles del Venue</h1>
+            <div>
+                {% if user_is_organizer %}
+                    <a
+                        href="{% url 'venue_edit' venue.id %}"
+                        class="btn btn-outline-primary me-2"
+                    >
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Información del Venue</h5>
+                <div class="mt-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-building text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Nombre</h6>
+                            <p class="mb-0">{{ venue.name }}</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-geo-alt text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Dirección</h6>
+                            <p class="mb-0">{{ venue.address }}</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-geo-fill text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Ciudad</h6>
+                            <p class="mb-0">{{ venue.city }}</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-people text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Capacidad</h6>
+                            <p class="mb-0">{{ venue.capacity }}</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-telephone text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Contacto</h6>
+                            <p class="mb-0">{% if venue.contact %}{{ venue.contact }}{% else %}No especificado{% endif %}</p>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
