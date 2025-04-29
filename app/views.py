@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Event, User, Ticket
+from .models import Event, User, Ticket, TicketType
 from .decorators import organizer_required
 from django.contrib import messages
 
@@ -64,7 +64,7 @@ def events(request):
     events = Event.objects.all().order_by("scheduled_at")
     return render(
         request,
-        "app/events.html",
+        "app/event/events.html",
         {"events": events, "user_is_organizer": request.user.is_organizer},
     )
 
@@ -72,7 +72,8 @@ def events(request):
 @login_required
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
-    return render(request, "app/event_detail.html", {"event": event})
+    time = timezone.now()
+    return render(request, "app/event/event_detail.html", {"event": event, "time" : time})
 
 
 @login_required
@@ -123,7 +124,7 @@ def event_form(request, id=None):
 
     return render(
         request,
-        "app/event_form.html",
+        "app/event/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
 
@@ -149,15 +150,15 @@ def ticket_create(request, event_id):
         )
 
         if success:
-            return redirect("event_detail", id=event.pk)
+            return redirect("user_ticket_list")
         else:
             return render(
                 request,
-                "app/ticket_form.html",
+                "app/ticket/ticket_form.html",
                 {"errors": result, "event": event, "data": request.POST},
             )
 
-    return render(request, "app/ticket_form.html", {"event": event})
+    return render(request, "app/ticket/ticket_form.html", {"event": event})
 
 
 @login_required
@@ -181,13 +182,13 @@ def ticket_delete(request, ticket_id):
 @organizer_required
 def organizer_ticket_list(request):
     tickets = Ticket.objects.all()
-    return render(request, "app/organizer_ticket_list.html", {"tickets": tickets})
+    return render(request, "app/ticket/organizer_ticket_list.html", {"tickets": tickets})
 
 
 @login_required
 def ticket_detail(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
-    return render(request, "app/ticket_detail.html", {"ticket": ticket})
+    return render(request, "app/ticket/ticket_detail.html", {"ticket": ticket})
 
 
 @login_required
@@ -196,8 +197,9 @@ def ticket_update(request, ticket_id):
 
     if request.method == "POST":
         quantity = request.POST.get("quantity")
+        type = request.POST.get("type")
 
-        success, result = Ticket.update(ticket_id, quantity=int(quantity))
+        success, result = Ticket.update(ticket_id, quantity=int(quantity), type=type)
 
         if success:
             if request.user.is_organizer:
@@ -207,16 +209,17 @@ def ticket_update(request, ticket_id):
         else:
             return render(
                 request,
-                "app/ticket_update.html",
+                "app/ticket/ticket_update.html",
                 {"errors": result, "ticket": ticket, "data": request.POST},
             )
 
-    return render(request, "app/ticket_update.html", {
+    return render(request, "app/ticket/ticket_update.html", {
                                                     "ticket": ticket,
-                                                    "event": ticket.event
+                                                    "event": ticket.event,
+                                                    "ticket_types": TicketType.choices
                                                     })
 
 @login_required
 def user_ticket_list(request):
     tickets = Ticket.objects.filter(user=request.user)
-    return render(request, "app/user_ticket_list.html", {"tickets": tickets})
+    return render(request, "app/ticket/user_ticket_list.html", {"tickets": tickets})

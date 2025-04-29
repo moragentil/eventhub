@@ -78,7 +78,7 @@ class Event(models.Model):
         self.save()
 
 
-def code_generator(length=50):
+def code_generator(length=20):
     characters = string.ascii_letters + string.digits
     while True:
         code = ''.join(secrets.choice(characters) for _ in range(length))
@@ -91,7 +91,7 @@ class TicketType(models.TextChoices):
 
 class Ticket(models.Model):
     buy_date = models.DateTimeField(auto_now_add=True)
-    ticket_code = models.CharField(max_length=50, unique=True, default=code_generator)
+    ticket_code = models.CharField(max_length=20, unique=True, default=code_generator)
     quantity = models.IntegerField(null=False, default=1)
     type = models.CharField(
         max_length=10,
@@ -146,7 +146,7 @@ class Ticket(models.Model):
         return True, ticket
 
     @classmethod
-    def update(cls, ticket_id, quantity=None):
+    def update(cls, ticket_id, quantity=None, type=None):
         try:
             ticket = cls.objects.get(id=ticket_id)
             
@@ -160,6 +160,14 @@ class Ticket(models.Model):
                 else:
                     ticket.quantity = quantity
             
+
+            if type is not None:
+                if type not in TicketType.values:
+                    errors["type"] = "Tipo de Ticket no válido."
+                else:
+                    ticket.type = type
+
+
             if errors:
                 return False, errors
             
