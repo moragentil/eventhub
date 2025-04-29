@@ -65,7 +65,7 @@ def events(request):
     events = Event.objects.all().order_by("scheduled_at")
     return render(
         request,
-        "app/events.html",
+        "app/event/events.html",
         {"events": events, "user_is_organizer": request.user.is_organizer},
     )
 
@@ -73,7 +73,7 @@ def events(request):
 @login_required
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
-    return render(request, "app/event_detail.html", {"event": event})
+    return render(request, "app/event/event_detail.html", {"event": event})
 
 
 @login_required
@@ -124,7 +124,7 @@ def event_form(request, id=None):
 
     return render(
         request,
-        "app/event_form.html",
+        "app/event/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
 
