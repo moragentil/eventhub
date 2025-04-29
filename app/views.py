@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .models import Event, User
+from .models import Event, User, Notification
 
 
 def register(request):
@@ -125,3 +125,83 @@ def event_form(request, id=None):
         "app/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
+
+@login_required
+def notifications(request):
+    notifications = Notification.objects.filter(user=request.user).order_by("-created_at")
+    return render(
+        request,
+        "app/notifications.html",
+        {
+            "notifications": notifications, "user_is_organizer": request.user.is_organizer,
+        }
+        )
+
+@login_required
+def notification_detail(request, id):
+    notification = get_object_or_404(Notification, pk=id)
+    return render(request, "app/notification_detail.html", {"notification": notification})
+
+@login_required
+def notification_delete(request, id):
+    user = request.user
+    if not user.is_organizer:
+        return redirect("notifications")
+    
+    if request.method == "POST":
+        notification = get_object_or_404(Notification, pk=id)
+        notification.delete()
+        return redirect("notifications")
+    
+    return redirect("notifications")
+
+@login_required
+def notification_form(request, id=None):
+    user = request.user
+
+    if not user.is_organizer:
+        return redirect("notifications")
+    
+    if request.method == "POST":
+        title = request.POST.get("title")
+        message = request.POST.get("message")
+        priority = request.POST.get("priority")
+
+        if id is None:
+            Notification.new(user, title, message, priority)
+        else:
+            notification = get_object_or_404(Notification, pk=id)
+            notification.update(title, message, priority)
+
+        return redirect("notifications")
+    
+    notification = {}
+    if id is not None:
+        notification = get_object_or_404(Notification, pk=id)
+
+    return render(
+        request,
+        "app/notification_form.html",
+        {
+            "notification": notification,
+            "user_is_organizer": request.user.is_organizer,
+        },
+        {
+            "priorities": Notification.PRIORITY_CHOICES,
+        },
+    )
+
+@login_required
+def mark_notification_as_read(request, id):
+    notification = get_object_or_404(Notification, pk=id)
+    notification.is_read = True
+    notification.save()
+    return redirect("notifications")
+
+@login_required
+def mark_all_notifications_as_read(request):
+    notifications = Notification.objects.filter(user=request.user, is_read=False)
+    for notification in notifications:
+        notification.is_read = True
+        notification.save()
+    return redirect("notifications")
