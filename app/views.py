@@ -134,7 +134,7 @@ def refund_requests(request):
     refund_requests = RefundRequest.objects.filter(user=request.user).order_by("created_at")
     return render(
         request,
-        "app/refund_requests.html",
+        "app/refund_request/refund_requests.html",
         {"refund_requests": refund_requests, "user_is_organizer": request.user.is_organizer},
     )
 
@@ -157,10 +157,16 @@ def refund_request_form(request, id=None):
 
         errors= []
 
-        #if not Ticket.objects.filter(ticket_code=ticket_code).exists():
-        #    errors.append("El ticket con el código ingresado no existe")
-        # Descomentar cuando se implemente el modelo de Ticket
-
+        """
+        Descomentar cuando se implemente el modelo de Ticket
+        ticket = ...
+        if ticket is None:
+            errors.append("El ticket con el código ingresado no existe")
+        elif timezone.now() - ticket.created_at > datetime.timedelta(days=30):
+            errors.append("El ticket con el código ingresado no es válido para solicitar reembolso")
+        
+        """
+        
         if approval_date_str:
             try:
                 approval_date = dt.strptime(approval_date_str, "%Y-%m-%d").date()
@@ -185,7 +191,7 @@ def refund_request_form(request, id=None):
                 messages.error(request, error)
             return render(
                 request,
-                "app/refund_request_form.html",
+                "app/refund_request/refund_request_form.html",
                 {"refund_request": refund_request}
             )
 
@@ -199,7 +205,7 @@ def refund_request_form(request, id=None):
 
     return render(
         request,
-        "app/refund_request_form.html",
+        "app/refund_request/refund_request_form.html",
         {"refund_request": refund_request},
     )
 
@@ -221,4 +227,4 @@ def refund_request_detail(request, id):
        return redirect("events")
 
     refund_request = get_object_or_404(RefundRequest, pk=id)
-    return render(request, "app/refund_request_detail.html", {"refund_request": refund_request})
+    return render(request, "app/refund_request/refund_request_detail.html", {"refund_request": refund_request})
