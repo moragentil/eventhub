@@ -1,4 +1,0 @@
-<h1>Lista de solicitudes de reembolso</h1>
-{% for r in refund_requests %}
-    <p>{{ r }} - <a href="{% url 'refund_request_detail' r.id %}">Ver Detalles</a> </p>
-{% endfor %}
