@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h1 class="mb-4">
+                {% if venue and venue.id %}
+                    Editar Lugar
+                {% else %}
+                    Crear Lugar
+                {% endif %}
+            </h1>
+            <div class="card">
+                <div class="card-body">
+                    <form action="{% if venue and venue.id %}{% url 'venue_edit' venue.id %}{% else %}{% url 'venue_form' %}{% endif %}" method="POST">
+                        {% csrf_token %}
+                        <div class="vstack gap-3">
+                            {% if request.method == 'POST' and messages %}
+                                <div class="container mt-3">
+                                    {% for message in messages %}
+                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                            {{ message }}
+                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <div>
+                                <label for="name" class="form-label">Nombre</label>
+                                <input class="form-control" 
+                                    id="name"
+                                    type="text"
+                                    name="name" 
+                                    value="{% if venue %}{{ venue.name }}{% endif %}" 
+                                    required 
+                                />
+                            </div>
+
+                            <div>
+                                <label for="address" class="form-label">Dirección</label>
+                                <input class="form-control" 
+                                    id="address"
+                                    type="text"
+                                    name="address" 
+                                    value="{% if venue %}{{ venue.address }}{% endif %}" 
+                                    required 
+                                />
+                            </div>
+
+                            <div>
+                                <label for="city" class="form-label">Ciudad</label>
+                                <input class="form-control" 
+                                    id="city"
+                                    type="text"
+                                    name="city" 
+                                    value="{% if venue %}{{ venue.city }}{% endif %}" 
+                                    required 
+                                />
+                            </div>
+
+                            <div>
+                                <label for="capacity" class="form-label">Capacidad</label>
+                                <input class="form-control" 
+                                    id="capacity"
+                                    type="number"
+                                    name="capacity" 
+                                    value="{% if venue %}{{ venue.capacity }}{% endif %}" 
+                                    required 
+                                />
+                            </div>
+
+                            <div>
+                                <label for="contact" class="form-label">Contacto (opcional)</label>
+                                <input class="form-control" 
+                                    id="contact"
+                                    type="text"
+                                    name="contact" 
+                                    value="{% if venue %}{{ venue.contact }}{% endif %}" 
+                                />
+                            </div>
+
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    {% if venue and venue.id %}Actualizar Lugar{% else %}Crear Lugar{% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
