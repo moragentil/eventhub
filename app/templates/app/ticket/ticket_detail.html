@@ -4,12 +4,15 @@
 <div class="container mt-4">
     <h2 class="mb-4">Detalles de Entrada</h2>
     
-
     <div class="card">
         <div class="card-body">
             <p><strong>Código:</strong> {{ ticket.ticket_code }}</p>
             <p><strong>Cantidad:</strong> {{ ticket.quantity }}</p>
-            <p><strong>Tipo:</strong> {{ ticket.type }}</p>
+            <p><strong>Tipo:</strong> {{ ticket.get_type_display }}</p>  
+            <p><strong>Precio unitario:</strong> 
+                ${% if ticket.type == 'VIP' %}{{ ticket.event.price_vip }}{% else %}{{ ticket.event.price_general }}{% endif %}
+            </p>
+            <p><strong>Importe total:</strong> ${{ total_amount }}</p>  
             <p><strong>Evento:</strong> {{ ticket.event.title }}</p>
             <p><strong>Descripción Evento:</strong> {{ ticket.event.description }}</p>
             <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date|date:"d/m/Y" }}</p>
@@ -17,7 +20,6 @@
             <p><strong>Usuario:</strong> {{ ticket.user.username }}</p>
         </div>
     </div>
-
 
     <div class="mt-4">
         <form action="{% url 'ticket_delete' ticket.id %}" method="POST" class="d-inline">
@@ -27,7 +29,6 @@
             </button>
         </form>
     </div>
-
 
     <div class="row mt-3">
         <div class="col-2">

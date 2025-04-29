@@ -206,7 +206,16 @@ def organizer_ticket_list(request):
 @login_required
 def ticket_detail(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
-    return render(request, "app/ticket/ticket_detail.html", {"ticket": ticket})
+
+    if ticket.type == 'VIP':
+        total_amount = ticket.quantity * ticket.event.price_vip
+    else:
+        total_amount = ticket.quantity * ticket.event.price_general
+    
+    return render(request, 'app/ticket/ticket_detail.html', {
+        'ticket': ticket,
+        'total_amount': total_amount,
+    })
 
 
 @login_required
