@@ -185,6 +185,7 @@ class Ticket(models.Model):
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
+    used = models.BooleanField(default=False) 
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
@@ -231,7 +232,7 @@ class Ticket(models.Model):
         return True, ticket
 
     @classmethod
-    def update(cls, ticket_id, quantity=None, type=None):
+    def update(cls, ticket_id, quantity=None, type=None, used=None):
         try:
             ticket = cls.objects.get(id=ticket_id)
             
@@ -252,6 +253,13 @@ class Ticket(models.Model):
                 else:
                     ticket.type = type
 
+
+            if used is not None:
+                if isinstance(used, str):
+                    used = used.lower() == "true"
+                elif not isinstance(used, bool):
+                    used = False  
+                ticket.used = used
 
             if errors:
                 return False, errors
@@ -276,8 +284,14 @@ class Ticket(models.Model):
 
 
 class RefundRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('aprobado', 'Aprobado'),
+        ('rechazado', 'Rechazado'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refund_requests")
-    approved = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pendiente')
     approval_date = models.DateField(null=True, blank=True)
     ticket_code = models.CharField(max_length=100)
     reason = models.CharField(max_length=200)
@@ -287,11 +301,11 @@ class RefundRequest(models.Model):
         return f"Refund request for {self.ticket_code} by {self.user.username}"
     
     @classmethod
-    def new(cls, user, approved, approval_date, ticket_code, reason):
+    def new(cls, user, status, approval_date, ticket_code, reason):
         created_at = timezone.now()
         RefundRequest.objects.create(
             user=user,
-            approved=approved,
+            status=status,
             approval_date=approval_date,
             ticket_code=ticket_code,
             reason=reason,
@@ -299,8 +313,8 @@ class RefundRequest(models.Model):
         )
         return True, None
     
-    def update(self, approved=None, approval_date=None, reason=None):
-        self.approved = approved if approved is not None else self.approved
+    def update(self, status=None, approval_date=None, reason=None):
+        self.status = status if status is not None else self.status
         self.approval_date = approval_date if approval_date is not None else self.approval_date
         self.reason = reason if reason is not None else self.reason
         self.save()

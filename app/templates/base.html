@@ -28,15 +28,29 @@
                                 {% navbar_link 'events' 'Eventos' %}
                             </li>
 
-                            {% if user.is_organizer %}
-                                <li class="nav-item">
-                                    {% navbar_link 'organizer_ticket_list' 'Entradas' %}
-                                </li>
-                            {% endif %}
+                            <li class="nav-item">
+                                {% navbar_link 'venue' 'Lugares' %}
+                            </li>
 
                             <li class="nav-item">
                                 {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
                             </li>
+
+                            <li class="nav-item">
+                                {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
+                            </li>
+
+                            {% if user.is_organizer %}
+                                <li class="nav-item">
+                                    {% navbar_link 'organizer_ticket_list' 'Entradas' %}
+                                </li>
+
+                                <li class="nav-item">
+                                    {% navbar_link 'refund_requests' 'Reembolsos' %}
+                                </li>
+
+                            {% endif %}
+
                         </ul>
                     </div>
 
