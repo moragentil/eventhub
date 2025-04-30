@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Mis Entradas</h2>
+    <table class="table table-bordered text-center">
+        <thead class="thead-light">
+            <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Cantidad</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Evento</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+                <tr>
+                    <td>{{ ticket.ticket_code }}</td>
+                    <td>{{ ticket.quantity }}</td>
+                    <td>{{ ticket.type }}</td>
+                    <td>{{ ticket.event.title }}</td>
+                    <td>{{ ticket.buy_date|date:"d/m/Y H:i" }}</td>
+                    <td>
+
+                        <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-info btn-sm" title="Ver">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        
+                        <a href="{% url 'ticket_update' ticket.id %}" class="btn btn-warning btn-sm" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        
+                        </a>
+                        
+                        <form action="{% url 'ticket_delete' ticket.id %}" method="POST" style="display:inline;" title="Eliminar">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de que deseas eliminar este ticket?')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+
+            {% empty %}
+                <tr>
+                    <td colspan="6">No tienes tickets comprados.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

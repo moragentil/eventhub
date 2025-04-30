@@ -1,5 +1,10 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+from decimal import Decimal
+from django.utils import timezone
+import string
+import secrets
 
 
 class User(AbstractUser):
@@ -26,6 +31,53 @@ class User(AbstractUser):
 
         return errors
 
+class Venue(models.Model):
+    name = models.CharField(max_length=100)
+    address = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    capacity = models.IntegerField()
+    contact = models.CharField(max_length=100, null=True, blank=True)
+
+    def __str__(self):
+        return f"Venue: {self.name}"
+
+    @classmethod
+    def validate(cls, capacity):
+        errors = {}
+
+        if capacity <= 0:
+            errors["capacity"] = "La capacidad debe ser un número mayor que cero."
+            
+        return errors 
+
+    @classmethod
+    def new(cls, name, address, city, capacity, contact=None):
+        errors = Venue.validate(capacity)
+
+        if len(errors.keys()) > 0:
+            return False, errors
+
+        Venue.objects.create(
+            name=name,
+            address=address,
+            city=city,
+            capacity=capacity,
+            contact=contact,
+        )
+        return True, None
+    
+    def update(self, name=None, address=None, city=None, capacity=None, contact=None):
+        errors = Venue.validate(capacity)
+        if errors:
+            return False, errors
+        
+        self.name = name or self.name
+        self.address = address or self.address
+        self.city = city or self.city
+        self.capacity = capacity or self.capacity
+        self.contact = contact or self.contact
+        self.save()
+        return True, None
 
 class Event(models.Model):
     title = models.CharField(max_length=200)
@@ -34,12 +86,15 @@ class Event(models.Model):
     organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="organized_events")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    price_general = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('50.00'))
+    price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
+    venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip):
         errors = {}
 
         if title == "":
@@ -48,11 +103,24 @@ class Event(models.Model):
         if description == "":
             errors["description"] = "Por favor ingrese una descripcion"
 
+        if price_general is None:
+            errors["price_general"] = "El precio general es requerido."
+        elif price_general <= 0:
+            errors["price_general"] = "El precio general debe ser un número mayor que cero."
+
+        if price_vip is None:
+            errors["price_vip"] = "El precio VIP es requerido."
+        elif price_vip <= 0:
+            errors["price_vip"] = "El precio VIP debe ser un número mayor que cero."
+
+        if price_vip <= price_general:
+            errors["price_vip"] = "El precio VIP debe ser un número mayor que el general"
+        
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer):
-        errors = Event.validate(title, description, scheduled_at)
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip):
+        errors = Event.validate(title, description, scheduled_at, price_general, price_vip)
 
         if len(errors.keys()) > 0:
             return False, errors
@@ -62,42 +130,242 @@ class Event(models.Model):
             description=description,
             scheduled_at=scheduled_at,
             organizer=organizer,
+            price_general=price_general,
+            price_vip=price_vip
         )
 
         return True, None
 
-    def update(self, title, description, scheduled_at, organizer):
-        self.title = title or self.title
-        self.description = description or self.description
-        self.scheduled_at = scheduled_at or self.scheduled_at
-        self.organizer = organizer or self.organizer
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip):
+        errors = self.validate(title or self.title, description or self.description,
+                            scheduled_at or self.scheduled_at,
+                            price_general or self.price_general,
+                            price_vip or self.price_vip)
+
+        if errors:
+            return False, errors
+
+        if title is not None:
+            self.title = title
+        if description is not None:
+            self.description = description
+        if scheduled_at is not None:
+            self.scheduled_at = scheduled_at
+        if organizer is not None:
+            self.organizer = organizer
+        if price_general is not None:
+            self.price_general = price_general
+        if price_vip is not None:
+            self.price_vip = price_vip
 
         self.save()
+        return True, None
 
-class Rating(models.Model):
-    title = models.CharField(max_length=200)
-    text = models.TextField()
-    rating = models.IntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating_users")
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating_events")
-    
+
+
+def code_generator(length=20):
+    characters = string.ascii_letters + string.digits
+    while True:
+        code = ''.join(secrets.choice(characters) for _ in range(length))
+        if not Ticket.objects.filter(ticket_code=code).exists():
+            return code
+
+class TicketType(models.TextChoices):
+    GENERAL = "General", "General"
+    VIP = "VIP", "VIP"
+
+class Ticket(models.Model):
+    buy_date = models.DateTimeField(auto_now_add=True)
+    ticket_code = models.CharField(max_length=20, unique=True, default=code_generator)
+    quantity = models.IntegerField(null=False, default=1)
+    type = models.CharField(
+        max_length=10,
+        choices=TicketType.choices,
+        default=TicketType.GENERAL,
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
+
     def __str__(self):
-        return self.title
+        return f"Ticket for {self.event.title} by {self.user.username}"
 
     @classmethod
-    def validate(cls, title, text, rating ,created_at):
+    def validate(cls, quantity, type, event):
         errors = {}
 
-        if title is None:
+        if quantity is None:
+            errors["quantity"] = "La cantidad es requerida."
+        elif not isinstance(quantity, int):
+            errors["quantity"] = "La cantidad debe ser un número entero."
+        elif quantity <= 0:
+            errors["quantity"] = "La cantidad debe ser un número mayor que cero."
+
+
+        if type is None:
+            errors["type"] = "Debe seleccionar un tipo de Ticket."
+        elif type not in TicketType.values:
+            errors["type"] = "Tipo de Ticket no válido."
+
+        if event is None:
+            errors["event"] = "Debe seleccionar un Evento."
+
+
+        return errors
+
+    @classmethod
+    def new(cls, quantity, type, user, event):
+        errors = Ticket.validate(quantity, type, event)
+
+        if errors:
+            return False, errors
+
+        ticket = cls.objects.create(
+            buy_date = timezone.now(),
+            ticket_code = code_generator(),
+            quantity = quantity,
+            type = type,
+            user = user,
+            event = event
+        )
+
+        return True, ticket
+
+    @classmethod
+    def update(cls, ticket_id, quantity=None, type=None):
+        try:
+            ticket = cls.objects.get(id=ticket_id)
+            
+            errors = {}
+
+            if quantity is not None:
+                if not isinstance(quantity, int):
+                    errors["quantity"] = "La cantidad debe ser un número entero."
+                elif quantity <= 0:
+                    errors["quantity"] = "La cantidad debe ser un número mayor a cero."
+                else:
+                    ticket.quantity = quantity
+            
+
+            if type is not None:
+                if type not in TicketType.values:
+                    errors["type"] = "Tipo de Ticket no válido."
+                else:
+                    ticket.type = type
+
+
+            if errors:
+                return False, errors
+            
+            ticket.save()
+            return True, ticket
+
+        except cls.DoesNotExist:
+            return False, {"ticket": "Ticket no encontrado."}
+        
+    
+    @classmethod 
+    def delete_ticket(cls, ticket_id):
+        try:
+            ticket = cls.objects.get(id=ticket_id)
+            ticket.delete()
+            return True, ticket
+        
+        except cls.DoesNotExist:
+            return False, {"ticket": "Ticket no encontrado."}
+
+
+
+class RefundRequest(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refund_requests")
+    approved = models.BooleanField(default=False)
+    approval_date = models.DateField(null=True, blank=True)
+    ticket_code = models.CharField(max_length=100)
+    reason = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Refund request for {self.ticket_code} by {self.user.username}"
+    
+    @classmethod
+    def new(cls, user, approved, approval_date, ticket_code, reason):
+        created_at = timezone.now()
+        RefundRequest.objects.create(
+            user=user,
+            approved=approved,
+            approval_date=approval_date,
+            ticket_code=ticket_code,
+            reason=reason,
+            created_at=created_at
+        )
+        return True, None
+    
+    def update(self, approved=None, approval_date=None, reason=None):
+        self.approved = approved if approved is not None else self.approved
+        self.approval_date = approval_date if approval_date is not None else self.approval_date
+        self.reason = reason if reason is not None else self.reason
+        self.save()
+
+class Comment(models.Model):
+    title = models.CharField(max_length=200)
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="comments")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="comments")
+
+    def __str__(self):
+        return f"Comment by {self.user.username} on {self.event.title}"
+    
+    @classmethod
+    def validate(cls, title, text, event):
+        errors = {}
+
+        if title == "":
             errors["title"] = "Por favor ingrese un titulo"
 
-        if text is None:
-            errors["text"] = "Por favor ingrese un texto"
-        
-        if rating is None:
-            errors["rating"] = "Por favor ingrese un rating"
+        if text == "":
+            errors["text"] = "Por favor ingrese un comentario"
+
+        if event is None:
+            errors["event"] = "Debe seleccionar un Evento."
 
         return errors
     
     @classmethod
+    def new(cls, title, text, user, event):
+        errors = Comment.validate(title, text, event)
+
+        if errors:
+            return False, errors
+        
+        comment = cls.objects.create(
+            title=title,
+            text=text,
+            user=user,
+            event=event,
+            created_at=timezone.now()
+        )
+
+        return True, comment
+    
+
+    def update(self, title=None, text=None):
+        if title is not None:
+            self.title = title
+        if text is not None:
+            self.text = text
+
+        self.save()
+
+    @classmethod
+    def delete_comment(cls, comment_id, user):
+        try:
+            comment = cls.objects.get(id=comment_id)
+            if comment.user == user or user.is_organizer:
+                comment.delete()
+                return True, comment
+            else:
+                return False, {"authorization": "No tienes permiso para eliminar este comentario."}
+        
+        except cls.DoesNotExist:
+            return False, {"comment": "Comentario no encontrado."}
+           

@@ -1,68 +1,82 @@
 {% extends "base.html" %}
 
-{% block title %}Eventos{% endblock %}
+{% block title %}Solicitudes de Reembolso{% endblock %}
 
 {% block content %}
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Eventos</h1>
+        <h1>Solicitudes de Reembolso</h1>
         {% if user_is_organizer %}
             <a
-                href="{% url 'event_form' %}"
+                href="{% url 'refund_request_form' %}"
                 class="btn btn-primary"
             >
                 <i class="bi bi-plus-circle me-2" aria-hidden="true"></i>
-                Crear Evento
+                Crear Solicitud
             </a>
         {% endif %}
     </div>
     <table class="table">
         <thead>
             <tr>
-                <th>Título</th>
-                <th>Descripción</th>
-                <th>Fecha</th>
+                <th>Ticket</th>
+                <th>Usuario</th>
+                <th>Razón</th>
+                <th>Estado</th>
+                <th>Fecha de Solicitud</th>
                 <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
-            {% for event in events%}
+            {% for refund_request in refund_requests %}
                 <tr>
-                    <td>{{ event.title }}</td>
-                    <td>{{ event.description }}</td>
-                    <td>{{ event.scheduled_at|date:"d b Y, H:i" }}</td>
+                    <td>{{ refund_request.ticket_code }}</td>
+                    <td>{{ refund_request.user.username }}</td>
+                    <td>{{ refund_request.reason }}</td>
+                    <td>
+                        {% if refund_request.approved %}
+                            <span class="badge bg-success">Aprobado</span>
+                        {% else %}
+                            <span class="badge bg-warning">Pendiente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ refund_request.created_at|date:"d b Y, H:i" }}</td>
                     <td>
                         <div class="hstack gap-1">
-                            <a href="{% url 'event_detail' event.id %}"
+                            <a href="{% url 'refund_request_detail' refund_request.id %}"
                                class="btn btn-sm btn-outline-primary"
                                aria-label="Ver detalle"
                                title="Ver detalle">
                                 <i class="bi bi-eye" aria-hidden="true"></i>
                             </a>
                             {% if user_is_organizer %}
-                                <a href="{% url 'event_edit' event.id %}"
+                                <a href="{% url 'refund_request_edit' refund_request.id %}"
                                     class="btn btn-sm btn-outline-secondary"
                                     aria-label="Editar"
                                     title="Editar">
                                     <i class="bi bi-pencil" aria-hidden="true"></i>
                                 </a>
-                                <form action="{% url 'event_delete' event.id %}" method="POST">
+                                <form action="{% url 'refund_request_delete' refund_request.id %}" method="POST" style="display: inline;" onsubmit="return confirmDelete();">
                                     {% csrf_token %}
                                     <button class="btn btn-sm btn-outline-danger"
                                         title="Eliminar"
                                         type="submit"
-                                        aria-label="Eliminar"
-                                        titile="Eliminar">
+                                        aria-label="Eliminar">
                                         <i class="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                 </form>
+                                <script>
+                                    function confirmDelete() {
+                                        return confirm("¿Estás seguro de que quieres eliminar esta solicitud de reembolso?");
+                                    }
+                                </script>
                             {% endif %}
                         </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="4" class="text-center">No hay eventos disponibles</td>
+                    <td colspan="6" class="text-center">No hay solicitudes de reembolso disponibles</td>
                 </tr>
             {% endfor %}
         </tbody>

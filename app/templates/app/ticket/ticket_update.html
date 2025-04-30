@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Detalles de Entrada</h2>
+
+    <div class="card">
+        <div class="card-body">
+            <p><strong>Código:</strong> {{ ticket.ticket_code }}</p>
+            <p><strong>Cantidad:</strong> {{ ticket.quantity }}</p>
+            <p><strong>Tipo:</strong> {{ ticket.get_type_display }}</p>
+            <p><strong>Evento:</strong> {{ ticket.event.title }}</p>
+            <p><strong>Descripción Evento:</strong> {{ ticket.event.description }}</p>
+            <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date|date:"d/m/Y" }}</p>
+            <p><strong>Hora de Compra:</strong> {{ ticket.buy_date|date:"H:i" }}</p>
+            <p><strong>Usuario:</strong> {{ ticket.user.username }}</p>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h4>Actualizar cantidad</h4>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="quantity">Cantidad de entradas</label>
+                <input type="number" id="quantity" name="quantity" class="form-control" value="{{ ticket.quantity }}" required min="1">
+            </div>
+            <br>
+            <h4>Actualizar Tipo</h4>
+            <div class="form-group mt-3">
+                <label for="type">Tipo de entrada</label>
+                <select id="type" name="type" class="form-control">
+                    {% for key, label in ticket_types %}
+                        <option value="{{ key }}" {% if ticket.type == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Actualizar</button>
+        </form>
+    </div>
+
+    <div class="mt-4">
+        <form action="{% url 'ticket_delete' ticket.id %}" method="POST" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Estás seguro de que deseas eliminar este ticket?')">
+                <i class="bi bi-trash"></i> Eliminar Ticket
+            </button>
+        </form>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-2">
+            <a href="{% url 'user_ticket_list' %}" class="btn btn-secondary">Volver a mis tickets</a>
+        </div>
+    
+        {% if user.is_organizer %}
+        <div class="col-2">
+            <a href="{% url 'organizer_ticket_list' %}" class="btn btn-secondary">Volver a tickets</a>
+        </div>
+        {% endif %}
+    </div>
+    
+    <br>
+
+</div>
+{% endblock %}
