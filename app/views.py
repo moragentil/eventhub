@@ -177,12 +177,30 @@ def ticket_create(request, event_id):
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
         return redirect("event_detail", id=event.pk)
 
+    unit_price = None
+    total_amount = None
+    data = {}
+
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        data = request.POST
+
+        try:
+            quantity_int = int(quantity) if quantity else 0
+        except ValueError:
+            quantity_int = 0
+
+        if type == "VIP":
+            unit_price = event.price_vip
+        elif type == "General":
+            unit_price = event.price_general
+
+        if unit_price is not None:
+            total_amount = unit_price * quantity_int
 
         success, result = Ticket.new(
-            quantity=int(quantity),
+            quantity=quantity_int,
             type=type,
             user=request.user,
             event=event,
@@ -194,10 +212,25 @@ def ticket_create(request, event_id):
             return render(
                 request,
                 "app/ticket/ticket_form.html",
-                {"errors": result, "event": event, "data": request.POST},
+                {
+                    "errors": result,
+                    "event": event,
+                    "data": data,
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                },
             )
 
-    return render(request, "app/ticket/ticket_form.html", {"event": event})
+    return render(
+        request,
+        "app/ticket/ticket_form.html",
+        {
+            "event": event,
+            "data": data,
+            "unit_price": unit_price,
+            "total_amount": total_amount,
+        },
+    )
 
 
 @login_required
@@ -350,17 +383,13 @@ def refund_request_form(request, id=None):
         elif approved is True and approval_date is None:
             errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
 
-        if refund_request is None and RefundRequest.objects.filter(ticket_code=ticket_code).exists():
-            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        
-
         ticket = Ticket.objects.filter(ticket_code=ticket_code).first()  
         if ticket is None:
             errors.append("El ticket con el código ingresado no existe")
-
+        elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
+            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
         elif ticket.used:  
             errors.append("El ticket ya ha sido usado y no puede ser reembolsado")
-
         elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():  
             errors.append("El ticket con el código ingresado no es válido para solicitar reembolso, han pasado más de 30 días desde el evento")
 
@@ -374,7 +403,7 @@ def refund_request_form(request, id=None):
             )
 
         if id is None:
-            RefundRequest.new(user, status, approval_date, ticket_code, reason)
+            RefundRequest.new(user, status, approval_date, ticket, reason)
         else:
             if refund_request:
                 refund_request.update(status, approval_date, reason)

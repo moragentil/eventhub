@@ -26,7 +26,7 @@
         <tbody>
             {% for refund_request in refund_requests %}
                 <tr>
-                    <td>{{ refund_request.ticket_code }}</td>
+                    <td>{{ refund_request.ticket.ticket_code }}</td>
                     <td>{{ refund_request.reason }}</td>
                     <td>
                         {% if refund_request.status == "aprobado" %}

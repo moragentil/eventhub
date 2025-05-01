@@ -296,21 +296,21 @@ class RefundRequest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refund_requests")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pendiente')
     approval_date = models.DateField(null=True, blank=True)
-    ticket_code = models.CharField(max_length=100)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="refund_requests")
     reason = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Refund request for {self.ticket_code} by {self.user.username}"
+        return f"Refund request for {self.ticket.ticket_code} by {self.user.username}"
     
     @classmethod
-    def new(cls, user, status, approval_date, ticket_code, reason):
+    def new(cls, user, status, approval_date, ticket, reason):
         created_at = timezone.now()
         RefundRequest.objects.create(
             user=user,
             status=status,
             approval_date=approval_date,
-            ticket_code=ticket_code,
+            ticket=ticket,
             reason=reason,
             created_at=created_at
         )
