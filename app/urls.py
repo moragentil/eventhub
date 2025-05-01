@@ -29,4 +29,7 @@ urlpatterns = [
     path("venue/<int:id>/edit/", views.venue_form, name="venue_edit"),
     path("venue/<int:id>/", views.venue_detail, name="venue_detail"),
     path("venue/<int:id>/delete/", views.venue_delete, name="venue_delete"),
+    path("ratings/create/<int:event_id>/", views.rating_create, name="rating_create"),
+    path("ratings/<int:rating_id>/delete/", views.rating_delete, name="rating_delete"),
+    path("ratings/", views.user_rating_list, name="user_rating_list")
 ]

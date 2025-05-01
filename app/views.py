@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
 
-from .models import Event, User, Ticket, TicketType
+from .models import Event, User, Ticket, TicketType,Rating
 from .decorators import organizer_required
 from django.contrib import messages
 from .models import Event, User, RefundRequest, Venue, Ticket, TicketType
@@ -437,3 +437,51 @@ def venue_detail(request, id):
     venue = get_object_or_404(Venue, pk=id)
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
+@login_required
+def rating_create(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    if request.method == "POST":
+        title = request.POST.get("title")
+        text = request.POST.get("text")
+        rating_value = request.POST.get("rating")
+        
+        try:
+            rating_value = int(rating_value)
+        except ValueError:
+            rating_value = None
+        
+        success,result = Rating.new(
+            title=title,
+            text=text,
+            rating=rating_value,
+            created_at=timezone.now(),
+            user=request.user,
+            event=event,
+        )
+
+        if success:
+            messages.success(request, "Calificación creada exitosamente")
+            return redirect("event_detail", id=event_id)
+        else:
+            return render(
+                request,
+                "app/rating/rating_form.html",
+                {"errors": result, "event": event, "data": request.POST},
+            )
+    return render(request, "app/rating/rating_form.html",{"event":event})
+
+@login_required
+def rating_delete(request, rating_id):
+    rating = get_object_or_404(Rating, pk=rating_id)
+
+    if request.method == "POST":
+        rating.delete()
+        messages.success(request, "Calificacion eliminada correctamente")
+        return redirect('events')
+    
+    return redirect('events')
+
+@login_required
+def user_rating_list(request):
+    ratings = Rating.objects.filter(user=request.user)
+    return render(request, "app/rating/rating_list.html", {"ratings": ratings})
