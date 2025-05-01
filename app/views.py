@@ -102,54 +102,71 @@ def event_form(request, id=None):
     if not user.is_organizer:
         return redirect("events")
 
+    venues = Venue.objects.all()
+    event = None
+    errors = {}
+
     if request.method == "POST":
-        title = request.POST.get("title")
-        description = request.POST.get("description")
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
         date = request.POST.get("date")
         time = request.POST.get("time")
         price_general = request.POST.get("price_general")
         price_vip = request.POST.get("price_vip")
+        venue_id = request.POST.get("venue")
 
-        [year, month, day] = date.split("-")
-        [hour, minutes] = time.split(":")
+        try:
+            scheduled_at = timezone.make_aware(
+                datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            )
+        except ValueError:
+            errors["scheduled_at"] = "Fecha y hora inválidas."
+            scheduled_at = None
 
-        scheduled_at = timezone.make_aware(
-            datetime.datetime(int(year), int(month), int(day), int(hour), int(minutes))
-        )
+        try:
+            price_general = Decimal(price_general)
+        except:
+            errors["price_general"] = "Precio general inválido."
 
-        price_general = Decimal(price_general)
-        price_vip = Decimal(price_vip)
+        try:
+            price_vip = Decimal(price_vip)
+        except:
+            errors["price_vip"] = "Precio VIP inválido."
+
+        venue = get_object_or_404(Venue, pk=venue_id)
 
         if id is None:
-            Event.objects.create(
-                title=title, 
-                description=description, 
-                scheduled_at=scheduled_at, 
-                organizer=request.user, 
-                price_general=price_general, 
-                price_vip=price_vip
+            success, validation_errors = Event.new(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue
             )
         else:
             event = get_object_or_404(Event, pk=id)
-            event.title = title
-            event.description = description
-            event.scheduled_at = scheduled_at
-            event.organizer = request.user
-            event.price_general = price_general
-            event.price_vip = price_vip
-            event.save()  
+            success, validation_errors = event.update(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue
+            )
 
-        return redirect("events")
+        if not success and validation_errors:
+            errors.update(validation_errors)
+        else:
+            return redirect("events")
 
-    event = {}
-    if id is not None:
+    elif id:
         event = get_object_or_404(Event, pk=id)
 
     return render(
         request,
         "app/event/event_form.html",
-        {"event": event, "user_is_organizer": request.user.is_organizer},
+        {
+            "event": event,
+            "venues": venues,
+            "errors": errors,
+            "editing": id is not None,
+            "user_is_organizer": user.is_organizer,
+        },
     )
+
 
 
 @login_required

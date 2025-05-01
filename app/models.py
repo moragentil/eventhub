@@ -88,7 +88,7 @@ class Event(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     price_general = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('50.00'))
     price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
-    venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
+    venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=False, blank=False, )
 
     def __str__(self):
         return self.title
@@ -119,7 +119,7 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip):
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue):
         errors = Event.validate(title, description, scheduled_at, price_general, price_vip)
 
         if len(errors.keys()) > 0:
@@ -131,12 +131,13 @@ class Event(models.Model):
             scheduled_at=scheduled_at,
             organizer=organizer,
             price_general=price_general,
-            price_vip=price_vip
+            price_vip=price_vip,
+            venue=venue
         )
 
-        return True, None
+        return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue):
         errors = self.validate(title or self.title, description or self.description,
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
@@ -157,9 +158,11 @@ class Event(models.Model):
             self.price_general = price_general
         if price_vip is not None:
             self.price_vip = price_vip
+        if venue is not None:
+            self.venue = venue
 
         self.save()
-        return True, None
+        return True, {}
 
 
 
