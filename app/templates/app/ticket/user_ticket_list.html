@@ -24,18 +24,18 @@
                     <td>{{ ticket.buy_date|date:"d/m/Y H:i" }}</td>
                     <td>
 
-                        <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-info btn-sm" title="Ver">
+                        <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-sm btn-outline-primary" title="Ver">
                             <i class="bi bi-eye"></i>
                         </a>
                         
-                        <a href="{% url 'ticket_update' ticket.id %}" class="btn btn-warning btn-sm" title="Editar">
+                        <a href="{% url 'ticket_update' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Editar">
                             <i class="bi bi-pencil"></i>
                         
                         </a>
                         
                         <form action="{% url 'ticket_delete' ticket.id %}" method="POST" style="display:inline;" title="Eliminar">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de que deseas eliminar este ticket?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de que deseas eliminar este ticket?')">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </form>

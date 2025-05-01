@@ -102,54 +102,71 @@ def event_form(request, id=None):
     if not user.is_organizer:
         return redirect("events")
 
+    venues = Venue.objects.all()
+    event = None
+    errors = {}
+
     if request.method == "POST":
-        title = request.POST.get("title")
-        description = request.POST.get("description")
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
         date = request.POST.get("date")
         time = request.POST.get("time")
         price_general = request.POST.get("price_general")
         price_vip = request.POST.get("price_vip")
+        venue_id = request.POST.get("venue")
 
-        [year, month, day] = date.split("-")
-        [hour, minutes] = time.split(":")
+        try:
+            scheduled_at = timezone.make_aware(
+                datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            )
+        except ValueError:
+            errors["scheduled_at"] = "Fecha y hora inválidas."
+            scheduled_at = None
 
-        scheduled_at = timezone.make_aware(
-            datetime.datetime(int(year), int(month), int(day), int(hour), int(minutes))
-        )
+        try:
+            price_general = Decimal(price_general)
+        except:
+            errors["price_general"] = "Precio general inválido."
 
-        price_general = Decimal(price_general)
-        price_vip = Decimal(price_vip)
+        try:
+            price_vip = Decimal(price_vip)
+        except:
+            errors["price_vip"] = "Precio VIP inválido."
+
+        venue = get_object_or_404(Venue, pk=venue_id)
 
         if id is None:
-            Event.objects.create(
-                title=title, 
-                description=description, 
-                scheduled_at=scheduled_at, 
-                organizer=request.user, 
-                price_general=price_general, 
-                price_vip=price_vip
+            success, validation_errors = Event.new(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue
             )
         else:
             event = get_object_or_404(Event, pk=id)
-            event.title = title
-            event.description = description
-            event.scheduled_at = scheduled_at
-            event.organizer = request.user
-            event.price_general = price_general
-            event.price_vip = price_vip
-            event.save()  
+            success, validation_errors = event.update(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue
+            )
 
-        return redirect("events")
+        if not success and validation_errors:
+            errors.update(validation_errors)
+        else:
+            return redirect("events")
 
-    event = {}
-    if id is not None:
+    elif id:
         event = get_object_or_404(Event, pk=id)
 
     return render(
         request,
         "app/event/event_form.html",
-        {"event": event, "user_is_organizer": request.user.is_organizer},
+        {
+            "event": event,
+            "venues": venues,
+            "errors": errors,
+            "editing": id is not None,
+            "user_is_organizer": user.is_organizer,
+        },
     )
+
 
 
 @login_required
@@ -160,12 +177,30 @@ def ticket_create(request, event_id):
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
         return redirect("event_detail", id=event.pk)
 
+    unit_price = None
+    total_amount = None
+    data = {}
+
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        data = request.POST
+
+        try:
+            quantity_int = int(quantity) if quantity else 0
+        except ValueError:
+            quantity_int = 0
+
+        if type == "VIP":
+            unit_price = event.price_vip
+        elif type == "General":
+            unit_price = event.price_general
+
+        if unit_price is not None:
+            total_amount = unit_price * quantity_int
 
         success, result = Ticket.new(
-            quantity=int(quantity),
+            quantity=quantity_int,
             type=type,
             user=request.user,
             event=event,
@@ -177,10 +212,25 @@ def ticket_create(request, event_id):
             return render(
                 request,
                 "app/ticket/ticket_form.html",
-                {"errors": result, "event": event, "data": request.POST},
+                {
+                    "errors": result,
+                    "event": event,
+                    "data": data,
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                },
             )
 
-    return render(request, "app/ticket/ticket_form.html", {"event": event})
+    return render(
+        request,
+        "app/ticket/ticket_form.html",
+        {
+            "event": event,
+            "data": data,
+            "unit_price": unit_price,
+            "total_amount": total_amount,
+        },
+    )
 
 
 @login_required
@@ -229,8 +279,9 @@ def ticket_update(request, ticket_id):
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        used = request.POST.get("used")
 
-        success, result = Ticket.update(ticket_id, quantity=int(quantity), type=type)
+        success, result = Ticket.update(ticket_id, quantity=int(quantity), type=type, used=used)
 
         if success:
             if request.user.is_organizer:
@@ -256,44 +307,66 @@ def user_ticket_list(request):
     return render(request, "app/ticket/user_ticket_list.html", {"tickets": tickets})
 
 
-
+@login_required
+@organizer_required
 def refund_requests(request):
-    refund_requests = RefundRequest.objects.filter(user=request.user).order_by("created_at")
+    refund_requests = RefundRequest.objects.all().order_by("-created_at")
     return render(
         request,
         "app/refund_request/refund_requests.html",
         {"refund_requests": refund_requests, "user_is_organizer": request.user.is_organizer},
     )
 
+
+@login_required
+@organizer_required
+def approve_refund_request(request, refund_id):
+    refund = get_object_or_404(RefundRequest, id=refund_id)
+    if request.method == "POST":
+        refund.status = 'aprobado'
+        refund.approval_date = timezone.now()
+        refund.save()
+        messages.success(request, "Solicitud aprobada correctamente.")
+    return redirect('refund_requests')
+
+
+@login_required
+@organizer_required
+def reject_refund_request(request, refund_id):
+    refund = get_object_or_404(RefundRequest, id=refund_id)
+    if request.method == "POST":
+        refund.status = 'rechazado'
+        refund.approval_date = timezone.now()
+        refund.save()
+        messages.success(request, "Solicitud rechazada correctamente.")
+    return redirect('refund_requests')
+
+
+@login_required
+def user_refund_requests(request):
+    refund_requests = RefundRequest.objects.filter(user=request.user).order_by("-created_at")
+    return render(
+        request,
+        "app/refund_request/user_refund_requests.html",
+        {"refund_requests": refund_requests},
+    )
+
+
 @login_required
 def refund_request_form(request, id=None):
-    user = request.user
-
-    if not user.is_organizer:
-        return redirect("events")
-    
+    user = request.user    
     refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
     
     if request.method == "POST":
-
         approved = request.POST.get("approved") is not None
+        status = 'aprobado' if approved else 'pendiente'  
+        
         ticket_code = request.POST.get("ticket_code")
         reason = request.POST.get("reason")
         approval_date_str = request.POST.get("approval_date")
         
+        errors = []
 
-        errors= []
-
-        """
-        Descomentar cuando se implemente el modelo de Ticket
-        ticket = ...
-        if ticket is None:
-            errors.append("El ticket con el código ingresado no existe")
-        elif timezone.now() - ticket.created_at > datetime.timedelta(days=30):
-            errors.append("El ticket con el código ingresado no es válido para solicitar reembolso")
-        
-        """
-        
         if approval_date_str:
             try:
                 approval_date = dt.strptime(approval_date_str, "%Y-%m-%d").date()
@@ -310,9 +383,16 @@ def refund_request_form(request, id=None):
         elif approved is True and approval_date is None:
             errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
 
-        if refund_request is None and RefundRequest.objects.filter(ticket_code=ticket_code).exists():
+        ticket = Ticket.objects.filter(ticket_code=ticket_code).first()  
+        if ticket is None:
+            errors.append("El ticket con el código ingresado no existe")
+        elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
             errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        
+        elif ticket.used:  
+            errors.append("El ticket ya ha sido usado y no puede ser reembolsado")
+        elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():  
+            errors.append("El ticket con el código ingresado no es válido para solicitar reembolso, han pasado más de 30 días desde el evento")
+
         if errors:
             for error in errors:
                 messages.error(request, error)
@@ -323,12 +403,12 @@ def refund_request_form(request, id=None):
             )
 
         if id is None:
-            RefundRequest.new(user, approved, approval_date, ticket_code, reason)
+            RefundRequest.new(user, status, approval_date, ticket, reason)
         else:
-            refund_request = get_object_or_404(RefundRequest, pk=id)
-            refund_request.update(approved, approval_date, reason)
+            if refund_request:
+                refund_request.update(status, approval_date, reason)
 
-        return redirect("refund_requests")
+        return redirect("user_refund_requests")
 
     return render(
         request,
@@ -336,25 +416,22 @@ def refund_request_form(request, id=None):
         {"refund_request": refund_request},
     )
 
+
+
 @login_required
 def refund_request_delete(request, id):
     user = request.user
-    if not user.is_organizer:
-        return redirect("events")
-
     refund_request = get_object_or_404(RefundRequest, pk=id)
+    
     if request.method == "POST":
         refund_request.delete()
-    return redirect("refund_requests")
+    return redirect("user_refund_requests")
 
 @login_required
 def refund_request_detail(request, id):
     user = request.user
-    if not user.is_organizer:
-       return redirect("events")
-
     refund_request = get_object_or_404(RefundRequest, pk=id)
-    return render(request, "app/refund_request_detail.html", {"refund_request": refund_request})
+    return render(request, "app/refund_request/refund_request_detail.html", {"refund_request": refund_request})
 
 @login_required
 def venue(request):

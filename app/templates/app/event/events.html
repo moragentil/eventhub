@@ -17,18 +17,22 @@
         <thead>
             <tr>
                 <th>Título</th>
-                <th>Descripción</th>
                 <th>Fecha</th>
+                <th>Ubicación</th>
+                <th>Organizador</th>
+                <th>Categorías</th>
                 <th>Acciones</th>
-                <th>Comprar Ticket</th>  {# nueva columna #}
+                <th>Comprar Ticket</th> 
             </tr>
         </thead>
         <tbody>
             {% for event in events %}
                 <tr>
                     <td>{{ event.title }}</td>
-                    <td>{{ event.description }}</td>
-                    <td>{{ event.scheduled_at|date:"d b Y, H:i" }}</td>
+                    <td>{{ event.scheduled_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ event.venue.name }}</td>
+                    <td>{{ event.organizer }}</td>
+                    <td>{{ algo }}</td>
                     <td>
                         <div class="hstack gap-1">
                             <a href="{% url 'event_detail' event.id %}"
@@ -56,7 +60,7 @@
                             {% endif %}
                         </div>
                     </td>
-                    <td class="text-center">
+                    <td>
                         <a href="{% url 'ticket_create' event.id %}" class="btn btn-success btn-sm">
                             <i class="bi bi-cart-plus" aria-hidden="true"></i> Comprar
                         </a>
