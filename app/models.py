@@ -385,4 +385,80 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
-           
+
+class Notification(models.Model):
+    PRIORITY_CHOICES = [
+        ("Low", "Baja"),
+        ("Medium", "Media"),
+        ("High", "Alta"),
+    ]
+
+    user = models.ManyToManyField(User, related_name="notifications")
+    title = models.CharField(max_length=50)
+    message = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    priority = models.CharField(
+        max_length=6,
+        choices=PRIORITY_CHOICES,
+        default="Baja",
+    )
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notification for {self.title} - {self.priority}"
+    
+    @classmethod
+    def validate(cls, title, message):
+        errors = {}
+
+        if title == "":
+            errors["title"] = "Por favor ingrese un titulo"
+
+        if message == "":
+            errors["message"] = "Por favor ingrese un mensaje"
+
+        return errors
+
+    @classmethod
+    def new(cls, users, title, message, priority="LOW"):
+        errors = Notification.validate(title, message)
+
+        if errors:
+            return False, errors
+
+        notification = cls.objects.create(
+            title=title,
+            message=message,
+            priority=priority,
+            is_read=False,
+        )
+        
+        notification.user.set(users)
+
+        return True, notification
+    
+    @classmethod
+    def update(cls, notification_id, title=None, message=None, priority=None):
+        try:
+            notification = cls.objects.get(id=notification_id)
+        except cls.DoesNotExist:
+            return False, {"error": "Notificación no encontrada"}
+
+        if title:
+            notification.title = title
+        if message:
+            notification.message = message
+        if priority:
+            notification.priority = priority
+
+        notification.save()
+        return True, notification
+    
+    @classmethod
+    def delete_notification(cls, notification_id):
+        try:
+            notification = cls.objects.get(id=notification_id)
+            notification.delete()
+            return True, None
+        except cls.DoesNotExist:
+            return False, {"error": "Notificación no encontrada"}
