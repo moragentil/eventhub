@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.db.models import Count
 
 from .models import Event, User, Notification
 
@@ -129,19 +130,41 @@ def event_form(request, id=None):
 
 @login_required
 def notifications(request):
-    notifications = Notification.objects.filter(user=request.user).order_by("-created_at")
-    return render(
-        request,
-        "app/notifications.html",
-        {
-            "notifications": notifications, "user_is_organizer": request.user.is_organizer,
-        }
-        )
+    user = request.user
+    search_query = request.GET.get('search', '')
+    priority_filter = request.GET.get('priority', '')
+
+    notifications_queryset = None
+    non_organizer_users = None
+
+    if user.is_organizer:
+        notifications_queryset = Notification.objects.all().order_by("-created_at")
+        non_organizer_users = User.objects.filter(is_organizer=False).count()
+
+        if search_query:
+            notifications_queryset = notifications_queryset.filter(title__icontains=search_query)
+        if priority_filter:
+            notifications_queryset = notifications_queryset.filter(priority=priority_filter)
+
+    else:
+        unread_count = Notification.objects.filter(user=user, is_read=False).count()
+        notifications_queryset = user.notifications.order_by("-created_at")
+
+    context = {
+        "notifications": notifications_queryset,
+        "user_is_organizer": user.is_organizer,
+        "non_organizer_users": non_organizer_users if user.is_organizer else None,
+        "unread_count": unread_count if not user.is_organizer else None,
+        "search_query": search_query if user.is_organizer else "",
+        "priority_filter": priority_filter if user.is_organizer else "",
+        "priorities": Notification.PRIORITY_CHOICES if user.is_organizer else [],
+    }
+    return render(request, "app/notification/notifications.html", context)
 
 @login_required
 def notification_detail(request, id):
     notification = get_object_or_404(Notification, pk=id)
-    return render(request, "app/notification_detail.html", {"notification": notification})
+    return render(request, "app/notification/notification_detail.html", {"notification": notification})
 
 @login_required
 def notification_delete(request, id):
@@ -163,86 +186,84 @@ def notification_form(request, id=None):
     if not user.is_organizer:
         return redirect("notifications")
     
+    notification_instance = None
+    if id:
+        notification_instance = get_object_or_404(Notification, pk=id)
+
     errors = {}
+    users_for_dropdown = User.objects.filter(is_organizer=False)
+
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
-        message = request.POST.get("message", "").strip()
+        message_content = request.POST.get("message", "").strip()
         priority = request.POST.get("priority")
-        user_ids = request.POST.getlist("user_ids")
+        recipient_type = request.POST.get("recipient_type")
+        specific_user_id = request.POST.get("specific_user")
 
-        if title == "":
+        if not title:
             errors["title"] = "Por favor ingrese un titulo"
-        elif len(title) > 100:
-            errors["title"] = "El titulo no puede tener mas de 100 caracteres"
+        elif len(title) > 50: 
+            errors["title"] = "El titulo no puede tener mas de 50 caracteres"
         
-        if message == "":
+        if not message_content:
             errors["message"] = "Por favor ingrese un mensaje"
-        elif len(message) > 500:
+        elif len(message_content) > 500: 
             errors["message"] = "El mensaje no puede tener mas de 500 caracteres"
         
-        if not user_ids:
-            errors["user_ids"] = "Por favor seleccione al menos un usuario"
-
-        if errors:
-            notification = {}
-            if id:
-                notification = get_object_or_404(Notification, pk=id)
-            return render(
-                request,
-                "app/notification_form.html",
-                {
-                    "notification": notification,
-                    "priorities": Notification.PRIORITY_CHOICES,
-                    "user_is_organizer": request.user.is_organizer,
-                    "users": User.objects.all(),
-                    "errors": errors,
-                },
-            )
-
-        if id is None:
-            users_ids = request.POST.getlist("user_ids")
-            users = User.objects.filter(id__in=users_ids)
-
-            success, result = Notification.new(users, title, message, priority)
-            if not success:
-                return render(
-                    request,
-                    "app/notification_form.html",
-                    {
-                        "notification": {},
-                        "priorities": Notification.PRIORITY_CHOICES,
-                        "user_is_organizer": request.user.is_organizer,
-                        "errors": result,
-                    },
-                )
-            notification = result
+        target_users_queryset = None
+        if recipient_type == "all":
+            target_users_queryset = User.objects.filter(is_organizer=False)
+            if not target_users_queryset.exists():
+                errors["recipient_type"] = "No hay usuarios disponibles para enviar la notificación"
+        elif recipient_type == "specific":
+            if not specific_user_id:
+                errors["recipient_type"] = "Por favor seleccione un usuario específico"
+            else:
+                try:
+                    selected_user = User.objects.get(pk=int(specific_user_id), is_organizer=False)
+                    target_users_queryset = User.objects.filter(pk=selected_user.pk)
+                except (User.DoesNotExist):
+                    errors["recipient_type"] = "El usuario seleccionado no existe o no es válido"
+                except (ValueError, TypeError):
+                    errors["recipient_type"] = "El ID de usuario seleccionado no es válido"
         else:
-            notification = get_object_or_404(Notification, pk=id)
-            notification.update(title, message, priority)
-            notification.users.set(user_ids)
-            notification.save()
+            errors["recipient_type"] = "Por favor seleccione un tipo de destinatario válido"
 
-            user_ids = request.POST.getlist("user_ids")
-            notification.users.set(user_ids)
-            notification.save()
+        if not errors:
+            if id is None:
+                success, result = Notification.new(target_users_queryset, title, message_content, priority)
+                if not success:
+                    errors = result
+                else:
+                    return redirect("notifications")
+            else:
+                notification_instance.title = title
+                notification_instance.message = message_content
+                notification_instance.priority = priority
+                notification_instance.save() 
+                if target_users_queryset is not None:
+                    notification_instance.user.set(target_users_queryset)
+                return redirect("notifications")
 
-        return redirect("notifications")
-    
-    users = User.objects.all()
-    notification = {}
-    if id is not None:
-        notification = get_object_or_404(Notification, pk=id)
-
-    return render(
-        request,
-        "app/notification_form.html",
-        {
-            "notification": notification,
-            "users": users,
+        context = {
+            "notification": notification_instance if id else request.POST, 
+            "users": users_for_dropdown,
             "priorities": Notification.PRIORITY_CHOICES,
             "user_is_organizer": request.user.is_organizer,
+            "errors": errors,
+            "selected_priority": priority,
+            "selected_recipient_type": recipient_type,
+            "selected_specific_user_id": specific_user_id,
         }
-    )
+        return render(request, "app/notification/notification_form.html", context)
+
+    context = {
+        "notification": notification_instance if id else {}, 
+        "users": users_for_dropdown,
+        "priorities": Notification.PRIORITY_CHOICES,
+        "user_is_organizer": request.user.is_organizer,
+    }
+    return render(request, "app/notification/notification_form.html", context)
 
 @login_required
 def mark_notification_as_read(request, id):

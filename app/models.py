@@ -77,24 +77,24 @@ class Event(models.Model):
 
 class Notification(models.Model):
     PRIORITY_CHOICES = [
-        ("LOW", "Low"),
-        ("MEDIUM", "Medium"),
-        ("HIGH", "High"),
+        ("Low", "Baja"),
+        ("Medium", "Media"),
+        ("High", "Alta"),
     ]
 
-    user = models.ManyToManyField(User, on_delete=models.CASCADE, related_name="notifications")
-    title = models.CharField(max_length=200)
+    user = models.ManyToManyField(User, related_name="notifications")
+    title = models.CharField(max_length=50)
     message = models.TextField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     priority = models.CharField(
         max_length=6,
         choices=PRIORITY_CHOICES,
-        default="LOW",
+        default="Baja",
     )
     is_read = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Notification for {self.title} - {self.priority} by {self.user.username}"
+        return f"Notification for {self.title} - {self.priority}"
     
     @classmethod
     def validate(cls, title, message):
@@ -118,13 +118,11 @@ class Notification(models.Model):
         notification = cls.objects.create(
             title=title,
             message=message,
-            created_at=timezone.now(),
             priority=priority,
             is_read=False,
         )
         
-        notification.users.set(users)
-        notification.save()
+        notification.user.set(users)
 
         return True, notification
     
