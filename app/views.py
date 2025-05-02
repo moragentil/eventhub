@@ -6,11 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
-
 from .models import Event, User, Ticket, TicketType
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Category
 
 
 def register(request):
@@ -109,6 +108,7 @@ def event_form(request, id=None):
         time = request.POST.get("time")
         price_general = request.POST.get("price_general")
         price_vip = request.POST.get("price_vip")
+        category_id = request.POST.get("category")
 
         [year, month, day] = date.split("-")
         [hour, minutes] = time.split(":")
@@ -119,6 +119,7 @@ def event_form(request, id=None):
 
         price_general = Decimal(price_general)
         price_vip = Decimal(price_vip)
+        category = get_object_or_404(Category, pk=category_id) if category_id else None
 
         if id is None:
             Event.objects.create(
@@ -127,7 +128,8 @@ def event_form(request, id=None):
                 scheduled_at=scheduled_at, 
                 organizer=request.user, 
                 price_general=price_general, 
-                price_vip=price_vip
+                price_vip=price_vip,
+                category=category
             )
         else:
             event = get_object_or_404(Event, pk=id)
@@ -137,6 +139,7 @@ def event_form(request, id=None):
             event.organizer = request.user
             event.price_general = price_general
             event.price_vip = price_vip
+            event.category = category
             event.save()  
 
         return redirect("events")
@@ -144,11 +147,13 @@ def event_form(request, id=None):
     event = {}
     if id is not None:
         event = get_object_or_404(Event, pk=id)
+        
+    categories = Category.objects.filter(is_active=True)
 
     return render(
         request,
         "app/event/event_form.html",
-        {"event": event, "user_is_organizer": request.user.is_organizer},
+        {"event": event, "user_is_organizer": request.user.is_organizer, "categories": categories},
     )
 
 
@@ -468,3 +473,80 @@ def venue_detail(request, id):
     venue = get_object_or_404(Venue, pk=id)
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
+@login_required
+@organizer_required
+def category_list(request):
+    categories = Category.objects.all()
+    return render(
+        request,
+        "app/category/categories.html",
+        {"categories": categories}
+    )
+
+@login_required
+@organizer_required
+def category_form(request, id=None):
+    category = get_object_or_404(Category, pk=id) if id else None
+
+    if request.method == "POST":
+        name = request.POST.get("name")
+        description = request.POST.get("description")
+        is_active = request.POST.get("is_active") == "on"
+
+        errors = {}
+
+        if not name:
+            errors["name"] = "El nombre es requerido."
+        if not description:
+            errors["description"] = "La descripción es requerida."
+
+        if errors:
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
+            return render(request, "app/category/category_form.html", {
+                "category": category,
+            })
+
+        if category is None:
+            Category.objects.create(
+                name=name,
+                description=description,
+                is_active=is_active
+            )
+        else:
+            category.name = name
+            category.description = description
+            category.is_active = is_active
+            category.save()
+
+        return redirect("category_list")
+
+    return render(
+        request,
+        "app/category/category_form.html",
+        {"category": category}
+    )
+
+@login_required
+@organizer_required
+def category_delete(request, id):
+    if request.method == "POST":
+        category = get_object_or_404(Category, pk=id)
+
+        if Event.objects.filter(category=category).exists():
+            messages.error(request, "No se puede eliminar la categoría porque tiene eventos asociados.")
+            return redirect("category_list")
+
+        category.delete()
+        messages.success(request, "Categoría eliminada correctamente.")
+
+    return redirect("category_list")
+
+@login_required
+@organizer_required
+def category_detail(request, id):
+    category = get_object_or_404(Category, pk=id)
+
+    return render(request, "app/category/category_detail.html", {
+        "category": category,
+    })
