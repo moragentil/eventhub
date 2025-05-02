@@ -65,12 +65,27 @@ def home(request):
 
 @login_required
 def events(request):
-    events = Event.objects.all().order_by("scheduled_at")
-    return render(
-        request,
-        "app/event/events.html",
-        {"events": events, "user_is_organizer": request.user.is_organizer},
-    )
+    events = Event.objects.all()
+    venues = Venue.objects.all()
+    categories = Category.objects.all()
+
+    date = request.GET.get("date")
+    venue_id = request.GET.get("venue")
+    category_id = request.GET.get("category")
+
+    if date:
+        events = events.filter(scheduled_at__date=date)
+    if venue_id:
+        events = events.filter(venue_id=venue_id)
+    if category_id:
+        events = events.filter(category_id=category_id)
+
+    return render(request, "app/event/events.html", {
+        "events": events,
+        "venues": venues,
+        "categories": categories,
+        "user_is_organizer": request.user.is_organizer,
+    })
 
 
 @login_required
@@ -146,7 +161,8 @@ def event_form(request, id=None):
             event = get_object_or_404(Event, pk=id)
             event.title = title
             event.description = description
-            event.scheduled_at = scheduled_at
+            if scheduled_at is not None:
+                event.scheduled_at = scheduled_at
             event.organizer = request.user
             event.price_general = price_general
             event.price_vip = price_vip
@@ -628,12 +644,13 @@ def notification_form(request, id=None):
                 else:
                     return redirect("notifications")
             else:
-                notification_instance.title = title
-                notification_instance.message = message_content
-                notification_instance.priority = priority
-                notification_instance.save() 
-                if target_users_queryset is not None:
-                    notification_instance.user.set(target_users_queryset)
+                if notification_instance:
+                    notification_instance.title = title
+                    notification_instance.message = message_content
+                    notification_instance.priority = priority
+                    notification_instance.save() 
+                    if target_users_queryset is not None:
+                        notification_instance.user.set(target_users_queryset)
                 return redirect("notifications")
 
         context = {

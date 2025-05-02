@@ -13,6 +13,41 @@
             </a>
         {% endif %}
     </div>
+
+    <!-- Filtros -->
+    <form method="GET" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label for="date" class="form-label">Fecha</label>
+            <input type="date" id="date" name="date" class="form-control" value="{{ request.GET.date }}">
+        </div>
+        <div class="col-md-4">
+            <label for="venue" class="form-label">Ubicación</label>
+            <select id="venue" name="venue" class="form-select">
+                <option value="">Todas las ubicaciones</option>
+                {% for venue in venues %}
+                    <option value="{{ venue.id }}" {% if request.GET.venue == venue.id|stringformat:"s" %}selected{% endif %}>
+                        {{ venue.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="category" class="form-label">Categoría</label>
+            <select id="category" name="category" class="form-select">
+                <option value="">Todas las categorías</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-12 text-end">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'events' %}" class="btn btn-secondary">Limpiar</a>
+        </div>
+    </form>
+
     <table class="table">
         <thead>
             <tr>
