@@ -36,7 +36,7 @@ def register(request):
                 email=email, username=username, password=password, is_organizer=is_organizer
             )
             login(request, user)
-            return redirect("events")
+            return redirect("home")
 
     return render(request, "accounts/register.html", {})
 
