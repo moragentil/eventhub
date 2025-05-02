@@ -10,7 +10,7 @@ from django.db.models import Count
 
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment
 
 
 def register(request):
@@ -77,8 +77,9 @@ def events(request):
 @login_required
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
+    comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time})
+    return render(request, "app/event/event_detail.html", {"event": event, "time" : time, "comments": comments})
 
 
 @login_required
@@ -667,3 +668,17 @@ def mark_all_notifications_as_read(request):
         notification.is_read = True
         notification.save()
     return redirect("notifications")
+
+@login_required
+def comments_list(request):
+    comments = Comment.objects.select_related("event", "user").order_by("-created_at")
+    return render(request, "app/comment/comments_list.html", {"comments": comments})
+
+@login_required
+def comment_create(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    title = request.POST.get("title")
+    text = request.POST.get("text")
+    if title and text:
+        Comment.objects.create(event=event, user=request.user, title=title, text=text)
+    return redirect("event_detail", id=event_id)

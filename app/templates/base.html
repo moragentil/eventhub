@@ -33,14 +33,6 @@
                             </li>
 
                             <li class="nav-item">
-                                {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
-                            </li>
-
-                            <li class="nav-item">
-                                {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
-                            </li>
-
-                            <li class="nav-item">
                                 {% navbar_link 'notifications' 'Notificaciones' %}
                             </li>
 
@@ -53,7 +45,20 @@
                                     {% navbar_link 'refund_requests' 'Reembolsos' %}
                                 </li>
 
+                                <li class="nav-item">
+                                    {% navbar_link 'comments_list' 'Comentarios' %}
+                                </li>
+                                
+
                             {% endif %}
+
+                            <li class="nav-item">
+                                {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
+                            </li>
+
+                            <li class="nav-item">
+                                {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
+                            </li>
 
                         </ul>
                     </div>
