@@ -19,8 +19,9 @@
                 <th>Título</th>
                 <th>Descripción</th>
                 <th>Fecha</th>
+                <th>Categoría</th>
                 <th>Acciones</th>
-                <th>Comprar Ticket</th> 
+                <th>Comprar Ticket</th>
             </tr>
         </thead>
         <tbody>
@@ -29,6 +30,7 @@
                     <td>{{ event.title }}</td>
                     <td>{{ event.description }}</td>
                     <td>{{ event.scheduled_at|date:"d b Y, H:i" }}</td>
+                    <td>{{ event.category.name|default:"Sin categoría" }}</td>
                     <td>
                         <div class="hstack gap-1">
                             <a href="{% url 'event_detail' event.id %}"
@@ -64,7 +66,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center">No hay eventos disponibles</td>
+                    <td colspan="6" class="text-center">No hay eventos disponibles</td>
                 </tr>
             {% endfor %}
         </tbody>
