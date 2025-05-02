@@ -18,20 +18,44 @@
         <tbody>
             {% for comment in comments %}
                 <tr>
-                    <td><a href="{% url 'event_detail' comment.event.id %}" class="text-decoration-none">{{ comment.event.title }}</a></td>
+                    <td>
+                        <a href="{% url 'event_detail' comment.event.id %}" class="text-decoration-none">
+                            {{ comment.event.title }}
+                        </a>
+                    </td>
                     <td>{{ comment.user.username }}</td>
                     <td>{{ comment.text }}</td>
                     <td>{{ comment.created_at|date:"d M Y, H:i" }}</td>
                     <td>
-                        <a href="#" class="btn btn-sm btn-outline-primary" title="Ver">
+                        <a href="{% url 'comment_detail' comment.id %}" class="btn btn-sm btn-outline-primary" title="Ver">
                             <i class="bi bi-eye" aria-hidden="true"></i>
                         </a>
-                        <form action="#" method="POST" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </form>
+                        <!-- Botón que abre el modal -->
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ comment.id }}" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+
+                        <!-- Modal de confirmación -->
+                        <div class="modal fade" id="deleteModal{{ comment.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ comment.id }}" aria-hidden="true">
+                          <div class="modal-dialog">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title" id="deleteModalLabel{{ comment.id }}">Confirmar eliminación</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                              </div>
+                              <div class="modal-body">
+                                ¿Estás seguro de que querés eliminar este comentario?
+                              </div>
+                              <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <form action="{% url 'comment_delete' comment.id %}" method="POST">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                                </form>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                     </td>
                 </tr>
             {% empty %}

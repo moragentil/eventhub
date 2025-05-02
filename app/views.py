@@ -682,3 +682,19 @@ def comment_create(request, event_id):
     if title and text:
         Comment.objects.create(event=event, user=request.user, title=title, text=text)
     return redirect("event_detail", id=event_id)
+
+@login_required
+def comment_detail(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+    return render(request, "app/comment/comment_detail.html", {"comment": comment})
+
+@login_required
+def comment_delete(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+
+    if comment.user == request.user or request.user.is_organizer:
+        if request.method == "POST":
+            comment.delete()
+            return redirect("comments_list")
+
+    return redirect("comments_list")
