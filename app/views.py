@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.db.models import Count
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Category
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category
 
 
 def register(request):
@@ -96,8 +96,9 @@ def events(request):
 @login_required
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
+    comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time})
+    return render(request, "app/event/event_detail.html", {"event": event, "time" : time, "comments": comments})
 
 
 @login_required
@@ -774,3 +775,33 @@ def category_detail(request, id):
     return render(request, "app/category/category_detail.html", {
         "category": category,
     })
+
+@login_required
+def comments_list(request):
+    comments = Comment.objects.select_related("event", "user").order_by("-created_at")
+    return render(request, "app/comment/comments_list.html", {"comments": comments})
+
+@login_required
+def comment_create(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    title = request.POST.get("title")
+    text = request.POST.get("text")
+    if title and text:
+        Comment.objects.create(event=event, user=request.user, title=title, text=text)
+    return redirect("event_detail", id=event_id)
+
+@login_required
+def comment_detail(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+    return render(request, "app/comment/comment_detail.html", {"comment": comment})
+
+@login_required
+def comment_delete(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+
+    if comment.user == request.user or request.user.is_organizer:
+        if request.method == "POST":
+            comment.delete()
+            return redirect("comments_list")
+
+    return redirect("comments_list")
