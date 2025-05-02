@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de Categoría | EventHub{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Detalle de Categoría</h1>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <p class="card-text"><strong>Nombre:</strong> {{ category.name }}</p>
+            <p class="card-text"><strong>Descripción:</strong> {{ category.description }}</p>
+            <p class="card-text"><strong>Activa:</strong> {{ category.is_active|yesno:"Sí,No" }}</p>
+        </div>
+    </div>
+
+    {% if category.events.exists %}
+        <div class="mt-4">
+            <h4>Eventos relacionados</h4>
+            <ul class="list-group">
+                {% for event in category.events.all %}
+                    <li class="list-group-item">
+                        <h6 class="mb-1">{{ event.title }}</h6>
+                        <p class="mb-0">{{ event.description }}</p>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% else %}
+        <p class="mt-4">No hay eventos asociados a esta categoría.</p>
+    {% endif %}
+
+    <a href="{% url 'category_list' %}" class="btn btn-secondary mt-4">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</div>
+{% endblock %}
