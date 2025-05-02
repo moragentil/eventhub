@@ -2,7 +2,6 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
-from django.utils import timezone
 import string
 import secrets
 
@@ -30,6 +29,7 @@ class User(AbstractUser):
             errors["password"] = "Las contraseñas no coinciden"
 
         return errors
+
 
 class Venue(models.Model):
     name = models.CharField(max_length=100)
@@ -79,6 +79,63 @@ class Venue(models.Model):
         self.save()
         return True, None
 
+
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Category: {self.name}"
+
+
+    @classmethod
+    def validate(cls, name, description):
+        errors = {}
+        if not name:
+            errors["name"] = "El nombre es requerido."
+        if not description:
+            errors["description"] = "La descripción es requerida."
+        return errors
+
+    @classmethod
+    def new(cls, user, name, description, is_active=True):
+        if not user.is_organizer:
+            return False, {"permission": "Solo los organizadores pueden crear categorías."}
+
+        errors = cls.validate(name, description)
+        if errors:
+            return False, errors
+
+        category = cls.objects.create(
+            name=name,
+            description=description,
+            is_active=is_active
+        )
+        return True, category
+
+    def update(self, user, name=None, description=None, is_active=None):
+        if not user.is_organizer:
+            return False, {"permission": "Solo los organizadores pueden editar categorías."}
+
+        self.name = name or self.name
+        self.description = description or self.description
+        self.is_active = is_active if is_active is not None else self.is_active
+        self.save()
+        return True, None
+
+    @classmethod
+    def delete_category(cls, user, category_id):
+        if not user.is_organizer:
+            return False, {"permission": "Solo los organizadores pueden eliminar categorías."}
+        try:
+            category = cls.objects.get(id=category_id)
+            category.delete()
+            return True, category
+        except cls.DoesNotExist:
+            return False, {"category": "Categoría no encontrada."}
+
+
 class Event(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
@@ -89,12 +146,14 @@ class Event(models.Model):
     price_general = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('50.00'))
     price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
+
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at, price_general, price_vip):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip, category):
         errors = {}
 
         if title == "":
@@ -115,12 +174,15 @@ class Event(models.Model):
 
         if price_vip <= price_general:
             errors["price_vip"] = "El precio VIP debe ser un número mayor que el general"
+            
+        if category is None:
+            errors["category"] = "Debe seleccionar una categoría."
         
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip):
-        errors = Event.validate(title, description, scheduled_at, price_general, price_vip)
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, category):
+        errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
 
         if len(errors.keys()) > 0:
             return False, errors
@@ -131,16 +193,18 @@ class Event(models.Model):
             scheduled_at=scheduled_at,
             organizer=organizer,
             price_general=price_general,
-            price_vip=price_vip
+            price_vip=price_vip,
+            category=category
         )
 
         return True, None
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, category):
         errors = self.validate(title or self.title, description or self.description,
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
-                            price_vip or self.price_vip)
+                            price_vip or self.price_vip,
+                            category or self.category)
 
         if errors:
             return False, errors
@@ -157,10 +221,11 @@ class Event(models.Model):
             self.price_general = price_general
         if price_vip is not None:
             self.price_vip = price_vip
+        if category is not None:
+            self.category = category
 
         self.save()
         return True, None
-
 
 
 def code_generator(length=20):
@@ -170,9 +235,11 @@ def code_generator(length=20):
         if not Ticket.objects.filter(ticket_code=code).exists():
             return code
 
+
 class TicketType(models.TextChoices):
     GENERAL = "General", "General"
     VIP = "VIP", "VIP"
+
 
 class Ticket(models.Model):
     buy_date = models.DateTimeField(auto_now_add=True)
@@ -282,7 +349,6 @@ class Ticket(models.Model):
             return False, {"ticket": "Ticket no encontrado."}
 
 
-
 class RefundRequest(models.Model):
     STATUS_CHOICES = [
         ('pendiente', 'Pendiente'),
@@ -318,6 +384,7 @@ class RefundRequest(models.Model):
         self.approval_date = approval_date if approval_date is not None else self.approval_date
         self.reason = reason if reason is not None else self.reason
         self.save()
+
 
 class Comment(models.Model):
     title = models.CharField(max_length=200)
@@ -382,4 +449,3 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
-           
