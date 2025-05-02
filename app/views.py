@@ -6,10 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
-from .models import Event, User, Ticket, TicketType
+from django.db.models import Count
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Category
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Category
 
 
 def register(request):
@@ -101,34 +101,45 @@ def event_form(request, id=None):
     if not user.is_organizer:
         return redirect("events")
 
+    venues = Venue.objects.all()
+    event = None
+    errors = {}
+
     if request.method == "POST":
-        title = request.POST.get("title")
-        description = request.POST.get("description")
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
         date = request.POST.get("date")
         time = request.POST.get("time")
         price_general = request.POST.get("price_general")
         price_vip = request.POST.get("price_vip")
+        venue_id = request.POST.get("venue")
         category_id = request.POST.get("category")
 
-        [year, month, day] = date.split("-")
-        [hour, minutes] = time.split(":")
+        try:
+            scheduled_at = timezone.make_aware(
+                datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            )
+        except ValueError:
+            errors["scheduled_at"] = "Fecha y hora inválidas."
+            scheduled_at = None
 
-        scheduled_at = timezone.make_aware(
-            datetime.datetime(int(year), int(month), int(day), int(hour), int(minutes))
-        )
+        try:
+            price_general = Decimal(price_general)
+        except:
+            errors["price_general"] = "Precio general inválido."
 
-        price_general = Decimal(price_general)
-        price_vip = Decimal(price_vip)
+        try:
+            price_vip = Decimal(price_vip)
+        except:
+            errors["price_vip"] = "Precio VIP inválido."
+
+        venue = get_object_or_404(Venue, pk=venue_id)
         category = get_object_or_404(Category, pk=category_id) if category_id else None
 
         if id is None:
-            Event.objects.create(
-                title=title, 
-                description=description, 
-                scheduled_at=scheduled_at, 
-                organizer=request.user, 
-                price_general=price_general, 
-                price_vip=price_vip,
+            success, validation_errors = Event.new(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue,
                 category=category
             )
         else:
@@ -139,13 +150,11 @@ def event_form(request, id=None):
             event.organizer = request.user
             event.price_general = price_general
             event.price_vip = price_vip
-            event.category = category
             event.save()  
 
         return redirect("events")
 
-    event = {}
-    if id is not None:
+    elif id:
         event = get_object_or_404(Event, pk=id)
         
     categories = Category.objects.filter(is_active=True)
@@ -153,7 +162,13 @@ def event_form(request, id=None):
     return render(
         request,
         "app/event/event_form.html",
-        {"event": event, "user_is_organizer": request.user.is_organizer, "categories": categories},
+        {
+            "event": event,
+            "venues": venues,
+            "errors": errors,
+            "editing": id is not None,
+            "user_is_organizer": user.is_organizer,
+            "categories": categories},
     )
 
 
@@ -165,12 +180,30 @@ def ticket_create(request, event_id):
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
         return redirect("event_detail", id=event.pk)
 
+    unit_price = None
+    total_amount = None
+    data = {}
+
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        data = request.POST
+
+        try:
+            quantity_int = int(quantity) if quantity else 0
+        except ValueError:
+            quantity_int = 0
+
+        if type == "VIP":
+            unit_price = event.price_vip
+        elif type == "General":
+            unit_price = event.price_general
+
+        if unit_price is not None:
+            total_amount = unit_price * quantity_int
 
         success, result = Ticket.new(
-            quantity=int(quantity),
+            quantity=quantity_int,
             type=type,
             user=request.user,
             event=event,
@@ -182,10 +215,25 @@ def ticket_create(request, event_id):
             return render(
                 request,
                 "app/ticket/ticket_form.html",
-                {"errors": result, "event": event, "data": request.POST},
+                {
+                    "errors": result,
+                    "event": event,
+                    "data": data,
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                },
             )
 
-    return render(request, "app/ticket/ticket_form.html", {"event": event})
+    return render(
+        request,
+        "app/ticket/ticket_form.html",
+        {
+            "event": event,
+            "data": data,
+            "unit_price": unit_price,
+            "total_amount": total_amount,
+        },
+    )
 
 
 @login_required
@@ -338,17 +386,13 @@ def refund_request_form(request, id=None):
         elif approved is True and approval_date is None:
             errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
 
-        if refund_request is None and RefundRequest.objects.filter(ticket_code=ticket_code).exists():
-            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        
-
         ticket = Ticket.objects.filter(ticket_code=ticket_code).first()  
         if ticket is None:
             errors.append("El ticket con el código ingresado no existe")
-
+        elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
+            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
         elif ticket.used:  
             errors.append("El ticket ya ha sido usado y no puede ser reembolsado")
-
         elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():  
             errors.append("El ticket con el código ingresado no es válido para solicitar reembolso, han pasado más de 30 días desde el evento")
 
@@ -362,7 +406,7 @@ def refund_request_form(request, id=None):
             )
 
         if id is None:
-            RefundRequest.new(user, status, approval_date, ticket_code, reason)
+            RefundRequest.new(user, status, approval_date, ticket, reason)
         else:
             if refund_request:
                 refund_request.update(status, approval_date, reason)
@@ -473,8 +517,163 @@ def venue_detail(request, id):
     venue = get_object_or_404(Venue, pk=id)
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
+
+
+@login_required
+def notifications(request):
+    user = request.user
+    search_query = request.GET.get('search', '')
+    priority_filter = request.GET.get('priority', '')
+
+    notifications_queryset = None
+    non_organizer_users = None
+
+    if user.is_organizer:
+        notifications_queryset = Notification.objects.all().order_by("-created_at")
+        non_organizer_users = User.objects.filter(is_organizer=False).count()
+
+        if search_query:
+            notifications_queryset = notifications_queryset.filter(title__icontains=search_query)
+        if priority_filter:
+            notifications_queryset = notifications_queryset.filter(priority=priority_filter)
+
+    else:
+        unread_count = Notification.objects.filter(user=user, is_read=False).count()
+        notifications_queryset = user.notifications.order_by("-created_at")
+
+    context = {
+        "notifications": notifications_queryset,
+        "user_is_organizer": user.is_organizer,
+        "non_organizer_users": non_organizer_users if user.is_organizer else None,
+        "unread_count": unread_count if not user.is_organizer else None,
+        "search_query": search_query if user.is_organizer else "",
+        "priority_filter": priority_filter if user.is_organizer else "",
+        "priorities": Notification.PRIORITY_CHOICES if user.is_organizer else [],
+    }
+    return render(request, "app/notification/notifications.html", context)
+
+@login_required
+def notification_detail(request, id):
+    notification = get_object_or_404(Notification, pk=id)
+    return render(request, "app/notification/notification_detail.html", {"notification": notification})
+
+@login_required
+def notification_delete(request, id):
+    user = request.user
+    if not user.is_organizer:
+        return redirect("notifications")
+    
+    if request.method == "POST":
+        notification = get_object_or_404(Notification, pk=id)
+        notification.delete()
+        return redirect("notifications")
+    
+    return redirect("notifications")
+
+@login_required
+def notification_form(request, id=None):
+    user = request.user
+
+    if not user.is_organizer:
+        return redirect("notifications")
+    
+    notification_instance = None
+    if id:
+        notification_instance = get_object_or_404(Notification, pk=id)
+
+    errors = {}
+    users_for_dropdown = User.objects.filter(is_organizer=False)
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        message_content = request.POST.get("message", "").strip()
+        priority = request.POST.get("priority")
+        recipient_type = request.POST.get("recipient_type")
+        specific_user_id = request.POST.get("specific_user")
+
+        if not title:
+            errors["title"] = "Por favor ingrese un titulo"
+        elif len(title) > 50: 
+            errors["title"] = "El titulo no puede tener mas de 50 caracteres"
+        
+        if not message_content:
+            errors["message"] = "Por favor ingrese un mensaje"
+        elif len(message_content) > 500: 
+            errors["message"] = "El mensaje no puede tener mas de 500 caracteres"
+        
+        target_users_queryset = None
+        if recipient_type == "all":
+            target_users_queryset = User.objects.filter(is_organizer=False)
+            if not target_users_queryset.exists():
+                errors["recipient_type"] = "No hay usuarios disponibles para enviar la notificación"
+        elif recipient_type == "specific":
+            if not specific_user_id:
+                errors["recipient_type"] = "Por favor seleccione un usuario específico"
+            else:
+                try:
+                    selected_user = User.objects.get(pk=int(specific_user_id), is_organizer=False)
+                    target_users_queryset = User.objects.filter(pk=selected_user.pk)
+                except (User.DoesNotExist):
+                    errors["recipient_type"] = "El usuario seleccionado no existe o no es válido"
+                except (ValueError, TypeError):
+                    errors["recipient_type"] = "El ID de usuario seleccionado no es válido"
+        else:
+            errors["recipient_type"] = "Por favor seleccione un tipo de destinatario válido"
+
+        if not errors:
+            if id is None:
+                success, result = Notification.new(target_users_queryset, title, message_content, priority)
+                if not success:
+                    errors = result
+                else:
+                    return redirect("notifications")
+            else:
+                notification_instance.title = title
+                notification_instance.message = message_content
+                notification_instance.priority = priority
+                notification_instance.save() 
+                if target_users_queryset is not None:
+                    notification_instance.user.set(target_users_queryset)
+                return redirect("notifications")
+
+        context = {
+            "notification": notification_instance if id else request.POST, 
+            "users": users_for_dropdown,
+            "priorities": Notification.PRIORITY_CHOICES,
+            "user_is_organizer": request.user.is_organizer,
+            "errors": errors,
+            "selected_priority": priority,
+            "selected_recipient_type": recipient_type,
+            "selected_specific_user_id": specific_user_id,
+        }
+        return render(request, "app/notification/notification_form.html", context)
+
+    context = {
+        "notification": notification_instance if id else {}, 
+        "users": users_for_dropdown,
+        "priorities": Notification.PRIORITY_CHOICES,
+        "user_is_organizer": request.user.is_organizer,
+    }
+    return render(request, "app/notification/notification_form.html", context)
+
+@login_required
+def mark_notification_as_read(request, id):
+    notification = get_object_or_404(Notification, pk=id)
+    notification.is_read = True
+    notification.save()
+    return redirect("notifications")
+
+@login_required
+def mark_all_notifications_as_read(request):
+    notifications = Notification.objects.filter(user=request.user, is_read=False)
+    for notification in notifications:
+        notification.is_read = True
+        notification.save()
+    return redirect("notifications")
 @login_required
 @organizer_required
+
+
 def category_list(request):
     categories = Category.objects.all()
     return render(
@@ -482,6 +681,7 @@ def category_list(request):
         "app/category/categories.html",
         {"categories": categories}
     )
+
 
 @login_required
 @organizer_required
@@ -527,6 +727,7 @@ def category_form(request, id=None):
         {"category": category}
     )
 
+
 @login_required
 @organizer_required
 def category_delete(request, id):
@@ -541,6 +742,7 @@ def category_delete(request, id):
         messages.success(request, "Categoría eliminada correctamente.")
 
     return redirect("category_list")
+
 
 @login_required
 @organizer_required

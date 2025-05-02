@@ -5,86 +5,134 @@
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <h1 class="mb-4">
-                {% if event.id %}
+                {% if editing %}
                     Editar evento
                 {% else %}
                     Crear evento
                 {% endif %}
             </h1>
 
+            {% if errors %}
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    {% for field, error in errors.items %}
+                        <li><strong>{{ field|title }}:</strong> {{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
             <div class="card">
                 <div class="card-body">
                     <form method="POST" action="{% if editing %}{% url 'event_edit' event.id %}{% else %}{% url 'event_form' %}{% endif %}">
-
                         {% csrf_token %}
                         <div class="vstack gap-3">
+
                             <div>
                                 <label for="title" class="form-label">Título del Evento</label>
-                                <input class="form-control"
+                                <input class="form-control {% if errors.title %}is-invalid{% endif %}"
                                     id="title"
-                                    required=""
+                                    required
                                     type="text"
-                                    value="{{ event.title }}"
+                                    value="{% if request.method == 'POST' %}{{ request.POST.title }}{% else %}{{ event.title|default:'' }}{% endif %}"
                                     name="title" />
+                                {% if errors.title %}
+                                    <div class="invalid-feedback">{{ errors.title }}</div>
+                                {% endif %}
                             </div>
+
+
                             <div>
                                 <label for="description" class="form-label">Descripción</label>
                                 <textarea
-                                    class="form-control"
+                                    class="form-control {% if errors.description %}is-invalid{% endif %}"
                                     id="description"
                                     name="description"
                                     rows="4"
-                                    required="">{{ event.description }}</textarea>
+                                    required>{% if request.method == 'POST' %}{{ request.POST.description }}{% else %}{{ event.description|default:'' }}{% endif %}</textarea>
+                                {% if errors.description %}
+                                    <div class="invalid-feedback">{{ errors.description }}</div>
+                                {% endif %}
                             </div>
+
+  
                             <div class="row">
                                 <div class="col-md-6">
                                     <label for="date" class="form-label">Fecha</label>
                                     <input
-                                        class="form-control"
+                                        class="form-control {% if errors.scheduled_at %}is-invalid{% endif %}"
                                         id="date"
-                                        required=""
+                                        required
                                         type="date"
-                                        value="{{ event.scheduled_at|date:'Y-m-d'}}"
+                                        value="{% if request.method == 'POST' %}{{ request.POST.date }}{% else %}{{ event.scheduled_at|date:'Y-m-d'|default:'' }}{% endif %}"
                                         name="date" />
+                                    {% if errors.scheduled_at %}
+                                        <div class="invalid-feedback">{{ errors.scheduled_at }}</div>
+                                    {% endif %}
                                 </div>
                                 <div class="col-md-6">
                                     <label for="time" class="form-label">Hora</label>
                                     <input
-                                        class="form-control"
+                                        class="form-control {% if errors.scheduled_at %}is-invalid{% endif %}"
                                         id="time"
-                                        required=""
+                                        required
                                         type="time"
-                                        value="{{ event.scheduled_at|date:'g:i'}}"
+                                        value="{% if request.method == 'POST' %}{{ request.POST.time }}{% else %}{{ event.scheduled_at|time:'H:i'|default:'' }}{% endif %}"
                                         name="time" />
                                 </div>
                             </div>
+
 
                             <div class="row">
                                 <div class="col-md-6">
                                     <label for="price_general" class="form-label">Precio General</label>
                                     <input
-                                        class="form-control"
+                                        class="form-control {% if errors.price_general %}is-invalid{% endif %}"
                                         id="price_general"
                                         required
                                         type="number"
                                         step="0.01"
                                         min="1"
-                                        value="{{ event.price_general }}"
+                                        value="{% if request.method == 'POST' %}{{ request.POST.price_general }}{% else %}{{ event.price_general|default:'' }}{% endif %}"
                                         name="price_general" />
+                                    {% if errors.price_general %}
+                                        <div class="invalid-feedback">{{ errors.price_general }}</div>
+                                    {% endif %}
                                 </div>
                                 <div class="col-md-6">
                                     <label for="price_vip" class="form-label">Precio VIP</label>
                                     <input
-                                        class="form-control"
+                                        class="form-control {% if errors.price_vip %}is-invalid{% endif %}"
                                         id="price_vip"
                                         required
                                         type="number"
                                         step="0.01"
                                         min="1"
-                                        value="{{ event.price_vip }}"
+                                        value="{% if request.method == 'POST' %}{{ request.POST.price_vip }}{% else %}{{ event.price_vip|default:'' }}{% endif %}"
                                         name="price_vip" />
+                                    {% if errors.price_vip %}
+                                        <div class="invalid-feedback">{{ errors.price_vip }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
+
+
+                            <div>
+                                <label for="venue" class="form-label">Lugar del evento</label>
+                                <select class="form-select {% if errors.venue %}is-invalid{% endif %}" id="venue" name="venue" required>
+                                    <option value="" disabled {% if not event.venue.id and not request.POST.venue %}selected{% endif %}>Seleccione un lugar</option>
+                                    {% for v in venues %}
+                                        <option value="{{ v.id }}" 
+                                            {% if request.method == 'POST' and request.POST.venue == v.id|stringformat:"s" or event.venue.id == v.id %}selected{% endif %}>
+                                            {{ v.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                {% if errors.venue %}
+                                    <div class="invalid-feedback">{{ errors.venue }}</div>
+                                {% endif %}
+                            </div>
+
 
                             <div>
                                 <label for="category" class="form-label">Categoría</label>
@@ -102,12 +150,13 @@
 
                             <div>
                                 <button type="submit" class="btn btn-primary">
-                                    {% if event.id %}
+                                    {% if editing %}
                                         Actualizar Evento
                                     {% else %}
                                         Crear Evento
                                     {% endif %}
                                 </button>
+                                <a href="{% url 'events' %}" class="btn btn-secondary ms-2">Cancelar</a>
                             </div>
                         </div>
                     </form>

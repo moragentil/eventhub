@@ -181,7 +181,7 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, category):
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
         errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
 
         if len(errors.keys()) > 0:
@@ -194,12 +194,13 @@ class Event(models.Model):
             organizer=organizer,
             price_general=price_general,
             price_vip=price_vip,
+            venue=venue,
             category=category
         )
 
-        return True, None
+        return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, category):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
         errors = self.validate(title or self.title, description or self.description,
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
@@ -221,6 +222,8 @@ class Event(models.Model):
             self.price_general = price_general
         if price_vip is not None:
             self.price_vip = price_vip
+        if venue is not None:
+            self.venue = venue
         if category is not None:
             self.category = category
 
@@ -359,21 +362,21 @@ class RefundRequest(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refund_requests")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pendiente')
     approval_date = models.DateField(null=True, blank=True)
-    ticket_code = models.CharField(max_length=100)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="refund_requests")
     reason = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Refund request for {self.ticket_code} by {self.user.username}"
+        return f"Refund request for {self.ticket.ticket_code} by {self.user.username}"
     
     @classmethod
-    def new(cls, user, status, approval_date, ticket_code, reason):
+    def new(cls, user, status, approval_date, ticket, reason):
         created_at = timezone.now()
         RefundRequest.objects.create(
             user=user,
             status=status,
             approval_date=approval_date,
-            ticket_code=ticket_code,
+            ticket=ticket,
             reason=reason,
             created_at=created_at
         )
@@ -449,3 +452,80 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
+
+class Notification(models.Model):
+    PRIORITY_CHOICES = [
+        ("Low", "Baja"),
+        ("Medium", "Media"),
+        ("High", "Alta"),
+    ]
+
+    user = models.ManyToManyField(User, related_name="notifications")
+    title = models.CharField(max_length=50)
+    message = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    priority = models.CharField(
+        max_length=6,
+        choices=PRIORITY_CHOICES,
+        default="Baja",
+    )
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notification for {self.title} - {self.priority}"
+    
+    @classmethod
+    def validate(cls, title, message):
+        errors = {}
+
+        if title == "":
+            errors["title"] = "Por favor ingrese un titulo"
+
+        if message == "":
+            errors["message"] = "Por favor ingrese un mensaje"
+
+        return errors
+
+    @classmethod
+    def new(cls, users, title, message, priority="LOW"):
+        errors = Notification.validate(title, message)
+
+        if errors:
+            return False, errors
+
+        notification = cls.objects.create(
+            title=title,
+            message=message,
+            priority=priority,
+            is_read=False,
+        )
+        
+        notification.user.set(users)
+
+        return True, notification
+    
+    @classmethod
+    def update(cls, notification_id, title=None, message=None, priority=None):
+        try:
+            notification = cls.objects.get(id=notification_id)
+        except cls.DoesNotExist:
+            return False, {"error": "Notificación no encontrada"}
+
+        if title:
+            notification.title = title
+        if message:
+            notification.message = message
+        if priority:
+            notification.priority = priority
+
+        notification.save()
+        return True, notification
+    
+    @classmethod
+    def delete_notification(cls, notification_id):
+        try:
+            notification = cls.objects.get(id=notification_id)
+            notification.delete()
+            return True, None
+        except cls.DoesNotExist:
+            return False, {"error": "Notificación no encontrada"}

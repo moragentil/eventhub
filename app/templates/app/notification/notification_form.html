@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-md-12"> 
+            <h1>
+                {% if notification.id %}
+                    Editar Notificación
+                {% else %}
+                    Crear Notificación
+                {% endif %}
+            </h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-9">
+            <div class="card"> 
+                <div class="card-body">
+                    <form action="{% if notification.id %}{% url 'notification_edit' notification.id %}{% else %}{% url 'notification_form' %}{% endif %}" method="POST">
+                        {% csrf_token %}
+                        <div class="vstack gap-4">
+                            {% if notification.method == 'POST' and messages %}
+                                <div class="container mt-3">
+                                    {% for message in messages %}
+                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                            {{ message }}
+                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <div>
+                                <label for="title" class="form-label">Título de la Notificación</label>
+                                <input type="text" class="form-control" id="title" name="title" value="{{ notification.title }}" required maxlength="50"></input>
+                            </div>
+                            <div>
+                                <label for="message" class="form-label">Mensaje de la Notificación</label>
+                                <textarea class="form-control" id="message" name="message" rows="4" required maxlength="500">{{ notification.message }}</textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Destinatarios</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="recipient_type" id="recipient_all" value="all" checked onchange="toggleUserSelect()">
+                                    <label class="form-check-label" for="recipient_all">
+                                        Todos los usuarios
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="recipient_type" id="recipient_specific" value="specific" onchange="toggleUserSelect()">
+                                    <label class="form-check-label" for="recipient_specific">
+                                        Usuario específico
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="user-select-div" style="display: none;">
+                                <label for="specific_user" class="form-label">Selecciona un usuario</label>
+                                <select class="form-select" id="specific_user" name="specific_user">
+                                    <option value="" selected disabled>Selecciona un usuario</option>
+                                    {% for user in users %} 
+                                        {% if not user.is_organizer %} 
+                                            <option value="{{ user.id }}">{{ user.username }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="priority" class="form-label">Prioridad</label>
+                                <select class="form-select" id="priority" name="priority" required>
+                                    <option value="Low">Baja</option>
+                                    <option value="Medium">Media</option>
+                                    <option value="High">Alta</option>
+                                </select>
+                            </div>
+                            <div class="text-end">
+                                <button type="submit" class="btn btn-primary px-4">
+                                    {% if notification.id %}
+                                        Actualizar Notificación
+                                    {% else %}
+                                        Enviar Notificación
+                                    {% endif %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>  
+
+        <div class="col-md-3">
+            <div class="card"> 
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Consejos</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <div class="d-flex align-items-start">
+                                <span class="text-warning me-2 mt-1"><i class="bi bi-lightbulb-fill"></i></span>
+                                <span>Usa títulos claros y concisos para captar la atención.</span>
+                            </div>
+                        </li>
+                        <li class="mb-3">
+                            <div class="d-flex align-items-start">
+                                <span class="text-warning me-2 mt-1"><i class="bi bi-lightbulb-fill"></i></span>
+                                <span>Incluye toda la información relevante en el mensaje.</span>
+                            </div>
+                        </li>
+                        <li class="mb-3">
+                            <div class="d-flex align-items-start">
+                                <span class="text-warning me-2 mt-1"><i class="bi bi-lightbulb-fill"></i></span>
+                                <span>Usa la prioridad alta solo para notificaciones urgentes.</span>
+                            </div>
+                        </li>
+                        <li class="mb-0">
+                            <div class="d-flex align-items-start">
+                                <span class="text-warning me-2 mt-1"><i class="bi bi-lightbulb-fill"></i></span>
+                                <span>Considera enviar por correo electrónico las notificaciones importantes.</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleUserSelect() {
+        const specificRadio = document.getElementById('recipient_specific');
+        const userSelectDiv = document.getElementById('user-select-div');
+        const userSelect = document.getElementById('specific_user');
+        
+        if (specificRadio.checked) {
+            userSelectDiv.style.display = 'block';
+            userSelect.required = true;
+        } else {
+            userSelectDiv.style.display = 'none';
+            userSelect.required = false; 
+            userSelect.value = ""; 
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+        const isEditing = "{{ notification.id|yesno:'true,false' }}";
+        const recipientType = "{{ recipient_type|default:'all' }}"; 
+        const specificUserId = "{{ specific_user_id|default:'' }}"; 
+
+        if (isEditing) {  
+            if (recipientType === 'specific') {
+                const specificRadio = document.getElementById('recipient_specific');
+                if (specificRadio) {
+                    specificRadio.checked = true;
+                }
+                const userSelect = document.getElementById('specific_user');
+                if (userSelect && specificUserId) {
+                    userSelect.value = specificUserId;
+                }
+            } else {
+                const allRadio = document.getElementById('recipient_all');
+                if (allRadio) {
+                    allRadio.checked = true;
+                }
+            }
+        } else {
+            const allRadio = document.getElementById('recipient_all');
+            if (allRadio) {
+                allRadio.checked = true;
+            }
+        }
+
+        toggleUserSelect();
+    });
+</script>
+{% endblock %}

@@ -40,6 +40,10 @@
                                 {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
                             </li>
 
+                            <li class="nav-item">
+                                {% navbar_link 'notifications' 'Notificaciones' %}
+                            </li>
+
                             {% if user.is_organizer %}
                                 <li class="nav-item">
                                     {% navbar_link 'organizer_ticket_list' 'Entradas' %}
