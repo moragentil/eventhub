@@ -54,13 +54,18 @@ def login_view(request):
             )
 
         login(request, user)
-        return redirect("events")
+        return redirect("home")
 
     return render(request, "accounts/login.html")
 
 
 def home(request):
-    return render(request, "home.html")
+    user = request.user
+    if not user.is_authenticated:
+        return render(request, "home_public.html")
+    if getattr(user, "is_organizer", False):
+        return render(request, "home_organizer.html", {"name": user.username})
+    return render(request, "home_user.html", {"name": user.username})
 
 
 @login_required
