@@ -517,17 +517,28 @@ def venue_detail(request, id):
 @login_required
 def rating_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
+
+    has_ticket = Ticket.objects.filter(event=event, user=request.user).exists()
+    if not has_ticket:
+        messages.error(request, "Debes comprar una entrada para calificar este evento.")
+        return redirect("event_detail", id=event_id)
+
     if request.method == "POST":
         title = request.POST.get("title")
         text = request.POST.get("text")
         rating_value = request.POST.get("rating")
-        
+
         try:
             rating_value = int(rating_value)
         except ValueError:
             rating_value = None
-        
-        success,result = Rating.new(
+
+
+        if rating_value is None or rating_value < 1 or rating_value > 10:
+            messages.error(request, "La calificación debe estar entre 1 y 10.")
+            return render(request, "app/rating/rating_form.html", {"event": event, "data": request.POST})
+
+        success, result = Rating.new(
             title=title,
             text=text,
             rating=rating_value,
@@ -537,7 +548,7 @@ def rating_create(request, event_id):
         )
 
         if success:
-            messages.success(request, "Calificación creada exitosamente")
+            messages.success(request, "Calificación creada exitosamente.")
             return redirect("event_detail", id=event_id)
         else:
             return render(
@@ -545,7 +556,7 @@ def rating_create(request, event_id):
                 "app/rating/rating_form.html",
                 {"errors": result, "event": event, "data": request.POST},
             )
-    return render(request, "app/rating/rating_form.html",{"event":event})
+    return render(request, "app/rating/rating_form.html", {"event": event})
 
 @login_required
 def rating_delete(request, rating_id):
@@ -557,6 +568,35 @@ def rating_delete(request, rating_id):
         return redirect('events')
     
     return redirect('events')
+
+@login_required
+def rating_edit(request, rating_id):
+    rating = get_object_or_404(Rating, pk=rating_id)
+
+    if rating.user != request.user:
+        messages.error(request, "No tenés permiso para editar esta calificación.")
+        return redirect("event_detail", id=rating.event.id)
+
+    if request.method == "POST":
+        title = request.POST.get("title")
+        text = request.POST.get("text")
+        rating_value = request.POST.get("rating")
+
+        try:
+            rating_value = int(rating_value)
+        except (ValueError, TypeError):
+            rating_value = None
+
+        success, result = rating.update(title, text, rating_value)
+
+        if success:
+            messages.success(request, "Calificación actualizada correctamente.")
+        else:
+            messages.error(request, "Error al actualizar la calificación.")
+
+        return redirect("event_detail", id=rating.event.id)
+
+    return redirect("event_detail", id=rating.event.id)
 
 @login_required
 def user_rating_list(request):

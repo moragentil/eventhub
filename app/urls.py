@@ -34,5 +34,6 @@ urlpatterns = [
     path("venue/<int:id>/delete/", views.venue_delete, name="venue_delete"),
     path("ratings/create/<int:event_id>/", views.rating_create, name="rating_create"),
     path("ratings/<int:rating_id>/delete/", views.rating_delete, name="rating_delete"),
-    path("ratings/", views.user_rating_list, name="user_rating_list")
+    path("ratings/", views.user_rating_list, name="user_rating_list"),
+    path("ratings/<int:rating_id>/edit/", views.rating_edit, name="rating_edit"),
 ]

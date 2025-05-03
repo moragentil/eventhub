@@ -70,8 +70,204 @@
                 </a>
             {% endif %}
         </div>
+        
+        {% if event.rating.exists %}
+        
+            <div class="mt-5">
+                <h4>Calificaciones y Reseñas ({{ event.rating.count }})</h4>
+                <div class="list-group">
+                    {% for rating in event.rating.all %}
+                    <div class="list-group-item" id="rating-{{ rating.id }}">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ rating.user.username }}</h6>
+                                <small>{{ rating.created_at|date:"d M Y, H:i" }}</small>
+                            </div>
+                            {% if rating.user == user %}
+                            <button class="btn btn-sm btn-outline-secondary toggle-edit" data-id="{{ rating.id }}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    
+                        <div class="rating-display-{{ rating.id }}">
+                            <p class="fw-bold mb-1">{{ rating.title }}</p>
+                            <p class="mb-1">{{ rating.text }}</p>
+                            <div class="mb-2">
+                                <div class="rating-display-static mb-2">
+                                    <div id="static-star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <form method="POST" action="{% url 'rating_edit' rating.id %}" class="rating-edit-form d-none" id="edit-form-{{ rating.id }}">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <input type="text" name="title" class="form-control mb-2" value="{{ rating.title }}">
+                                <textarea name="text" class="form-control mb-2">{{ rating.text }}</textarea>
+                                <input type="hidden" name="rating" id="rating-input-{{ rating.id }}" value="{{ rating.rating }}">
+                                <div id="star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-success">Guardar</button>
+                            <button type="button" class="btn btn-sm btn-secondary cancel-edit" data-id="{{ rating.id }}">Cancelar</button>
+                        </form>
+                        {% if user_is_organizer or rating.user == user %}
+                            <form method="POST" action="{% url 'rating_delete' rating.id %}" class="d-inline">
+                                {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="mt-5">
+            <h4>Agregar Calificación</h4>
+            <form method="POST" action="{% url 'rating_create' event.id %}" class="border rounded p-3">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="title" class="form-label">Título de la reseña</label>
+                    <input type="text" name="title" class="form-control" id="title" value="{{ data.title|default:'' }}">
+                    {% if errors.title %}<div class="text-danger">{{ errors.title }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tu calificación</label>
+                    <div id="star-rating" class="d-flex align-items-center gap-1" style="cursor: pointer;">
+                        {% for i in "12345" %}
+                            <i class="bi bi-star text-warning fs-4 star" data-index="{{ forloop.counter }}"></i>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="rating" id="rating-input" value="{{ data.rating|default:'0' }}">
+                    {% if errors.rating %}<div class="text-danger">{{ errors.rating }}</div>{% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="text" class="form-label">Tu reseña (opcional)</label>
+                    <textarea name="text" class="form-control" id="text" rows="3">{{ data.text|default:'' }}</textarea>
+                    {% if errors.text %}<div class="text-danger">{{ errors.text }}</div>{% endif %}
+                </div>
+                <button type="submit" class="btn btn-primary">Enviar calificación</button>
+            </form>
+        </div>
+
+        {% if not event.rating.exists %}
+            <p class="text-muted mt-3">Aún no hay calificaciones. ¡Sé el primero en dejar una!</p>
+        {% endif %}
 
     </div>
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        
+        document.querySelectorAll(".toggle-edit").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                document.querySelector(`#edit-form-${id}`).classList.remove("d-none");
+                document.querySelector(`.rating-display-${id}`).classList.add("d-none");
+            });
+        });
+    
+        document.querySelectorAll(".cancel-edit").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const id = btn.dataset.id;
+                document.querySelector(`#edit-form-${id}`).classList.add("d-none");
+                document.querySelector(`.rating-display-${id}`).classList.remove("d-none");
+            });
+        });
+    
+        document.querySelectorAll("[id^=star-rating-]").forEach(container => {
+            const id = container.id.replace("star-rating-", "");
+            const input = document.getElementById(`rating-input-${id}`);
+            const stars = [];
+    
+            for (let i = 0; i < 5; i++) {
+                const star = document.createElement("i");
+                star.className = "bi fs-4 text-warning bi-star";
+                star.style.cursor = "pointer";
+                container.appendChild(star);
+                stars.push(star);
+    
+                star.addEventListener("mousemove", (e) => {
+                    const rect = star.getBoundingClientRect();
+                    const offset = e.clientX - rect.left;
+                    const value = (offset < rect.width / 2) ? (i * 2 + 1) : ((i + 1) * 2);
+                    setStars(stars, value);
+                });
+    
+                star.addEventListener("click", (e) => {
+                    const rect = star.getBoundingClientRect();
+                    const offset = e.clientX - rect.left;
+                    const value = (offset < rect.width / 2) ? (i * 2 + 1) : ((i + 1) * 2);
+                    input.value = value;
+                    setStars(stars, value);
+                });
+    
+                star.addEventListener("mouseleave", () => {
+                    setStars(stars, parseInt(input.value) || 0);
+                });
+            }
+    
+            setStars(stars, parseInt(input.value) || 0);
+        });
+    
+        const createStars = document.querySelectorAll("#star-rating .star");
+        const createInput = document.getElementById("rating-input");
+    
+        if (createStars && createInput) {
+            createStars.forEach((star, i) => {
+                star.addEventListener("mousemove", (e) => {
+                    const rect = star.getBoundingClientRect();
+                    const offset = e.clientX - rect.left;
+                    const value = (offset < rect.width / 2) ? (i * 2 + 1) : ((i + 1) * 2);
+                    setStars(createStars, value);
+                });
+    
+                star.addEventListener("click", (e) => {
+                    const rect = star.getBoundingClientRect();
+                    const offset = e.clientX - rect.left;
+                    const value = (offset < rect.width / 2) ? (i * 2 + 1) : ((i + 1) * 2);
+                    createInput.value = value;
+                    setStars(createStars, value);
+                });
+    
+                star.addEventListener("mouseleave", () => {
+                    setStars(createStars, parseInt(createInput.value) || 0);
+                });
+            });
+    
+            setStars(createStars, parseInt(createInput.value) || 0);
+        }
+    
+        function setStars(stars, value) {
+            stars.forEach((star, i) => {
+                const full = (i + 1) * 2 <= value;
+                const half = !full && (i * 2 + 1) === value;
+                star.className = "bi fs-4 text-warning " +
+                    (full ? "bi-star-fill" : half ? "bi-star-half" : "bi-star");
+            });
+        }
+
+        document.querySelectorAll("[id^=static-star-rating-]").forEach(container => {
+            const id = container.id.replace("static-star-rating-", "");
+            const ratingValue = parseInt(document.getElementById(`rating-input-${id}`).value, 10);
+            const stars = [];
+
+            for (let i = 0; i < 5; i++) {
+                const star = document.createElement("i");
+                const full = (i + 1) * 2 <= ratingValue;
+                const half = !full && (i * 2 + 1) === ratingValue;
+                star.className = "bi fs-4 text-warning " +
+                    (full ? "bi-star-fill" : half ? "bi-star-half" : "bi-star");
+                container.appendChild(star);
+                stars.push(star);
+            }
+        });
+    });
+    </script>
+    
+    
 
 {% endblock %}

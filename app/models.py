@@ -400,7 +400,7 @@ class Rating(models.Model):
     
     @classmethod
     def validate(cls,title,text,rating,event):
-        errors:{}
+        errors = {}
 
         if title is None:
             errors["title"] = "Por favor ingrese un titulo"
