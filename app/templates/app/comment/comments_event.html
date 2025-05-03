@@ -1,0 +1,29 @@
+{% load static %}
+
+<div class="mt-5 ">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title border-bottom pb-2">Comentarios ({{ comments|length }})</h5>
+            <div class="list-group ">
+                {% for comment in comments %}
+                    <div class="list-group-item border-0 border-bottom rounded-bottom-0">
+                        <div class="d-flex  align-items-center mb-1">
+                            <img src="{% static 'images/default_profile_picture.png' %}" alt="User" class="rounded-circle me-2" width="35" >
+                            <div class="d-flex flex-column w-100 ">
+                                <h6 class="mb-1">{{ comment.user.username }}</h6>
+                                <small class="text-muted">{{ comment.created_at|date:"d M Y, H:i" }}</small>
+                            </div>
+                        </div>
+                        <h5 class="mb-1">{{ comment.title }}</h5>
+                        <p class="mb-1">{{ comment.text }}</p>
+                    </div>
+                {% empty %}
+                    <p >No hay comentarios para este evento.</p>
+                {% endfor %}
+            </div>
+            <div class="mt-2 ">
+                {% include "app/comment/comment_form.html" %}
+            </div>
+        </div>
+    </div>
+</div>

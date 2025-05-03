@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle del Comentario{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">{{ comment.title }}</h5>
+            <h6 class="card-subtitle mb-2 text-muted">Por {{ comment.user.username }} el {{ comment.created_at|date:"d M Y, H:i" }}</h6>
+            <p class="card-text">{{ comment.text }}</p>
+            <a href="{% url 'event_detail' comment.event.id %}" class="btn btn-outline-primary">Ir al Evento</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

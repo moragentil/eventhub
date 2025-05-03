@@ -1,0 +1,14 @@
+<div class="mt-4 ">
+    <form method="POST" action="{% url 'comment_create' event.id %}">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="title" class="form-label">Título del comentario *</label>
+            <input type="text" class="form-control" id="title" name="title" placeholder="Escriba un título para tu comentario..." required>
+        </div>
+        <div class="mb-3">
+            <label for="text" class="form-label">Contenido del comentario *</label>
+            <textarea class="form-control" id="text" name="text" rows="3" placeholder="Escribe tu comentario aquí..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Publicar comentario</button>
+    </form>
+</div>
