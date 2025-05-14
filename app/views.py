@@ -460,86 +460,87 @@ def refund_request_detail(request, id):
     refund_request = get_object_or_404(RefundRequest, pk=id)
     return render(request, "app/refund_request/refund_request_detail.html", {"refund_request": refund_request})
 
+
 @login_required
 def venue(request):
-    venues = Venue.objects.all().order_by("name")
-    return render(
-        request,
-        "app/venue/venue.html",
-        {"venues": venues, "user_is_organizer": request.user.is_organizer},
-    )
+    venues = Venue.objects.all()
+    return render(request, "app/venue/venue.html", {"venues": venues})
+
 
 @login_required
+@organizer_required
 def venue_form(request, id=None):
-    user = request.user
-    if not user.is_organizer:
-        return redirect("events")
-    
+    venue_instance = get_object_or_404(Venue, pk=id) if id else None
+    form_data = {}
+
     if request.method == "POST":
-        name = request.POST.get("name")
-        address = request.POST.get("address")
-        city = request.POST.get("city")
-        contact = request.POST.get("contact")
-
+        name = request.POST.get("name", "").strip()
+        address = request.POST.get("address", "").strip()
+        city = request.POST.get("city", "").strip()
+        contact = request.POST.get("contact", "").strip()
         capacity_raw = request.POST.get("capacity")
+
+        form_data = {
+            "name": name,
+            "address": address,
+            "city": city,
+            "capacity": capacity_raw,
+            "contact": contact,
+        }
+
         try:
-            capacity = int(capacity_raw)
-        except (TypeError, ValueError):
+            capacity = int(capacity_raw) if capacity_raw else None
+        except ValueError:
             capacity = None
+            if not capacity_raw:
+                messages.error(request, "capacity: La capacidad es obligatoria.")
+            else:
+                messages.error(request, "capacity: La capacidad debe ser un número válido.")
 
-        if id is None:
-            success, errors = Venue.new(name, address, city, capacity, contact)
-            if not success:
-                if errors:
-                    for field, error in errors.items():
-                        messages.error(request, f"{field}: {error}")
-                    return render(request, "app/venue/venue_form.html", {
-                        "venue": None,
-                })
+        if venue_instance:
+            success, errors = venue_instance.update(name, address, city, capacity, contact)
         else:
-            venue = get_object_or_404(Venue, pk=id)
-            success, errors = venue.update(name, address, city, capacity, contact)
-            if not success:
-                if errors:
-                    for field, error in errors.items():
-                        messages.error(request, f"{field}: {error}")
-                    return render(request, "app/venue/venue_form.html", {
-                        "venue": venue,
-                    })
+            venue_instance, errors = Venue.new(name, address, city, capacity, contact)
+            success = venue_instance is not None
 
-        return redirect("venue")
+        if not success and errors:
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
+            return render(request, "app/venue/venue_form.html", {
+                "venue": venue_instance,
+                "form_data": form_data
+            })
 
-    return render(
-        request,
-        "app/venue/venue_form.html",
-        {"venue": get_object_or_404(Venue, pk=id) if id else None},
-    )
+        messages.success(request, "Lugar guardado exitosamente!")
+        return redirect("venue_detail", id=venue_instance.pk)
+
+    return render(request, "app/venue/venue_form.html", {
+        "venue": venue_instance,
+        "form_data": form_data
+    })
+
 
 @login_required
+@organizer_required
 def venue_delete(request, id):
-    user = request.user
-    if not user.is_organizer:
-        return redirect("events")
-    
+    venue = get_object_or_404(Venue, pk=id)
+
     if request.method == "POST":
-        venue = get_object_or_404(Venue, pk=id)
-        if not Event.objects.filter(venue=venue).exists():
+        if Event.objects.filter(venue=venue).exists():
+            messages.error(request, "No se puede eliminar el lugar porque tiene eventos asociados.")
+        else:
             venue.delete()
             messages.success(request, "El lugar ha sido eliminado correctamente.")
-        else:
-            messages.error(request, "No se puede eliminar el lugar porque tiene eventos asociados.")
-            return render(
-                request,
-                "app/venue/venue.html",
-                {"error": "No se puede eliminar el lugar porque tiene eventos asociados."}
-            )
-        
-    return redirect("venue")
+        return redirect("venue")
+
+    return render(request, "app/venue/venue_confirm_delete.html", {"venue": venue})
+
 
 @login_required
 def venue_detail(request, id):
     venue = get_object_or_404(Venue, pk=id)
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
+
 
 @login_required
 def rating_create(request, event_id):

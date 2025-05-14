@@ -42,35 +42,62 @@ class Venue(models.Model):
         return f"Venue: {self.name}"
 
     @classmethod
-    def validate(cls, capacity):
+    def validate(cls, name, address, city, capacity, contact=None):
         errors = {}
 
-        if capacity <= 0:
+        if not name:
+            errors["name"] = "El nombre es obligatorio."
+        elif len(name) > 100:
+            errors["name"] = "El nombre no puede exceder los 100 caracteres."
+            
+        if not address:
+            errors["address"] = "La dirección es obligatoria."
+        elif len(address) > 100:
+            errors["address"] = "La dirección no puede exceder los 100 caracteres."
+            
+        if not city:
+            errors["city"] = "La ciudad es obligatoria."
+        elif len(city) > 100:
+            errors["city"] = "La ciudad no puede exceder los 100 caracteres."
+            
+        if capacity is None:
+            errors["capacity"] = "La capacidad es obligatoria."
+        elif capacity <= 0:
             errors["capacity"] = "La capacidad debe ser un número mayor que cero."
             
-        return errors 
+        if contact and len(contact) > 100:
+            errors["contact"] = "El contacto no puede exceder los 100 caracteres."
+
+        return errors
 
     @classmethod
     def new(cls, name, address, city, capacity, contact=None):
-        errors = Venue.validate(capacity)
+        errors = cls.validate(name, address, city, capacity, contact)
 
-        if len(errors.keys()) > 0:
-            return False, errors
+        if errors:
+            return None, errors
 
-        Venue.objects.create(
+        venue = cls.objects.create(
             name=name,
             address=address,
             city=city,
             capacity=capacity,
             contact=contact,
         )
-        return True, None
-    
+        return venue, None
+
     def update(self, name=None, address=None, city=None, capacity=None, contact=None):
-        errors = Venue.validate(capacity)
+        errors = self.validate(
+            name or self.name,
+            address or self.address,
+            city or self.city,
+            capacity or self.capacity,
+            contact or self.contact
+        )
+
         if errors:
             return False, errors
-        
+
         self.name = name or self.name
         self.address = address or self.address
         self.city = city or self.city
