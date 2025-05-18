@@ -383,42 +383,27 @@ def user_refund_requests(request):
 def refund_request_form(request, id=None):
     user = request.user    
     refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
+
+    ticket_code_initial = request.GET.get("ticket_code") if request.method == "GET" else None
     
     if request.method == "POST":
-        approved = request.POST.get("approved") is not None
-        status = 'aprobado' if approved else 'pendiente'  
-        
-        ticket_code = request.POST.get("ticket_code")
         reason = request.POST.get("reason")
-        approval_date_str = request.POST.get("approval_date")
-        
+        ticket_code = request.POST.get("ticket_code")
+
         errors = []
 
-        if approval_date_str:
-            try:
-                approval_date = dt.strptime(approval_date_str, "%Y-%m-%d").date()
-            except ValueError:
-                errors.append("Fecha inválida. Debe tener formato AAAA-MM-DD.")
-        else:
-            approval_date = None
+        if not reason or len(reason.split()) < 1:
+            errors.append("El motivo es requerido.")
 
-        if len(reason.split()) < 1:
-            errors.append("El motivo es requerido")
-        
-        if approved is False and approval_date is not None:
-            errors.append("La fecha de aprobación no puede ser ingresada si la solicitud no fue aprobada")
-        elif approved is True and approval_date is None:
-            errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
-
-        ticket = Ticket.objects.filter(ticket_code=ticket_code).first()  
+        ticket = Ticket.objects.filter(ticket_code=ticket_code).first()
         if ticket is None:
-            errors.append("El ticket con el código ingresado no existe")
+            errors.append("El ticket con el código ingresado no existe.")
         elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
             errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        elif ticket.used:  
-            errors.append("El ticket ya ha sido usado y no puede ser reembolsado")
-        elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():  
-            errors.append("El ticket con el código ingresado no es válido para solicitar reembolso, han pasado más de 30 días desde el evento")
+        elif ticket.used:
+            errors.append("El ticket ya ha sido usado y no puede ser reembolsado.")
+        elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():
+            errors.append("Han pasado más de 30 días desde el evento. No es posible solicitar reembolso.")
 
         if errors:
             for error in errors:
@@ -426,23 +411,30 @@ def refund_request_form(request, id=None):
             return render(
                 request,
                 "app/refund_request/refund_request_form.html",
-                {"refund_request": refund_request}
+                {
+                    "refund_request": refund_request,
+                    "ticket_code": ticket_code
+                }
             )
 
         if id is None:
-            RefundRequest.new(user, status, approval_date, ticket, reason)
+            RefundRequest.new(user, "pendiente", None, ticket, reason)
         else:
             if refund_request:
-                refund_request.update(status, approval_date, reason)
+                refund_request.update("pendiente", None, reason)
 
         return redirect("user_refund_requests")
+    else:
+        ticket_code = refund_request.ticket.ticket_code if refund_request else ticket_code_initial
 
-    return render(
-        request,
-        "app/refund_request/refund_request_form.html",
-        {"refund_request": refund_request},
-    )
-
+        return render(
+            request,
+            "app/refund_request/refund_request_form.html",
+            {
+                "refund_request": refund_request,
+                "ticket_code": ticket_code,
+            },
+        )
 
 
 @login_required

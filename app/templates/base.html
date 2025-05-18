@@ -56,13 +56,17 @@
 
                             {% endif %}
 
-                            <li class="nav-item">
-                                {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
-                            </li>
+                           
 
-                            <li class="nav-item">
-                                {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
-                            </li>
+                            {% if not user.is_organizer %}
+                                <li class="nav-item">
+                                    {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
+                                </li>
+
+                                <li class="nav-item">
+                                    {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
+                                </li>
+                            {% endif %}
 
                         </ul>
                     </div>
