@@ -4,6 +4,7 @@ from django.utils import timezone
 from decimal import Decimal
 import string
 import secrets
+import datetime
 
 
 class User(AbstractUser):
@@ -397,23 +398,52 @@ class RefundRequest(models.Model):
         return f"Refund request for {self.ticket.ticket_code} by {self.user.username}"
     
     @classmethod
+    def validate(cls, reason, ticket, existing_instance=None):
+        errors = {}
+
+        if not reason or len(reason.strip().split()) < 1:
+            errors["reason"] = "El motivo es requerido."
+
+        if ticket is None:
+            errors["ticket"] = "El ticket con el código ingresado no existe."
+        else:
+            if RefundRequest.objects.filter(ticket=ticket).exclude(pk=getattr(existing_instance, 'pk', None)).exists():
+                errors["ticket"] = "Ya se ha solicitado un reembolso para ese ticket."
+            elif ticket.used:
+                errors["ticket"] = "El ticket ya ha sido usado y no puede ser reembolsado."
+            elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():
+                errors["ticket"] = "Han pasado más de 30 días desde el evento. No es posible solicitar reembolso."
+        
+        return errors
+    
+    @classmethod
     def new(cls, user, status, approval_date, ticket, reason):
-        created_at = timezone.now()
-        RefundRequest.objects.create(
+        errors = cls.validate(reason, ticket)
+
+        if errors:
+            return None, errors
+
+        refund = cls.objects.create(
             user=user,
             status=status,
             approval_date=approval_date,
             ticket=ticket,
             reason=reason,
-            created_at=created_at
+            created_at=timezone.now()
         )
-        return True, None
+        return refund, None
     
     def update(self, status=None, approval_date=None, reason=None):
+        errors = self.validate(reason or self.reason, self.ticket, existing_instance=self)
+
+        if errors:
+            return False, errors
+
         self.status = status if status is not None else self.status
         self.approval_date = approval_date if approval_date is not None else self.approval_date
         self.reason = reason if reason is not None else self.reason
         self.save()
+        return True, None
 
 
 class Comment(models.Model):

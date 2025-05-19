@@ -381,52 +381,41 @@ def user_refund_requests(request):
 
 @login_required
 def refund_request_form(request, id=None):
-    user = request.user    
+    user = request.user
     refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
-
     ticket_code_initial = request.GET.get("ticket_code") if request.method == "GET" else None
-    
+
     if request.method == "POST":
         reason = request.POST.get("reason")
         ticket_code = request.POST.get("ticket_code")
 
-        errors = []
-
-        if not reason or len(reason.split()) < 1:
-            errors.append("El motivo es requerido.")
-
         ticket = Ticket.objects.filter(ticket_code=ticket_code).first()
-        if ticket is None:
-            errors.append("El ticket con el código ingresado no existe.")
-        elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
-            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        elif ticket.used:
-            errors.append("El ticket ya ha sido usado y no puede ser reembolsado.")
-        elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():
-            errors.append("Han pasado más de 30 días desde el evento. No es posible solicitar reembolso.")
+
+        if id is None:
+            refund_instance, errors = RefundRequest.new(user, "pendiente", None, ticket, reason)
+        else:
+            if refund_request:
+                success, errors = refund_request.update("pendiente", None, reason)
+            else:
+                success, errors = False, {"refund_request": "Solicitud de reembolso no encontrada."}
+
 
         if errors:
-            for error in errors:
-                messages.error(request, error)
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
             return render(
                 request,
                 "app/refund_request/refund_request_form.html",
                 {
                     "refund_request": refund_request,
-                    "ticket_code": ticket_code
+                    "ticket_code": ticket_code,
                 }
             )
 
-        if id is None:
-            RefundRequest.new(user, "pendiente", None, ticket, reason)
-        else:
-            if refund_request:
-                refund_request.update("pendiente", None, reason)
-
         return redirect("user_refund_requests")
+
     else:
         ticket_code = refund_request.ticket.ticket_code if refund_request else ticket_code_initial
-
         return render(
             request,
             "app/refund_request/refund_request_form.html",
@@ -435,6 +424,7 @@ def refund_request_form(request, id=None):
                 "ticket_code": ticket_code,
             },
         )
+
 
 
 @login_required

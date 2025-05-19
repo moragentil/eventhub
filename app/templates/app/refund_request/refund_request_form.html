@@ -16,18 +16,6 @@
                     <form action="{% if refund_request and refund_request.id %}{% url 'refund_request_edit' refund_request.id %}{% else %}{% url 'refund_request_form' %}{% endif %}" method="POST">
                         {% csrf_token %}
                         <div class="vstack gap-3">
-                            
-                            {% if request.method == 'POST' and messages %}
-                                <div class="container mt-3">
-                                    {% for message in messages %}
-                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                                            {{ message }}
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-
                             <div>
                                 <label for="ticket_code_display" class="form-label">Código del Ticket</label>
                                 <input class="form-control"
@@ -56,7 +44,6 @@
                                     {% endif %}
                                 </button>
                             </div>
-
                         </div>
                     </form>
                 </div>
