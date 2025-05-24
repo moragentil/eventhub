@@ -857,10 +857,22 @@ def comments_list(request):
 @login_required
 def comment_create(request, event_id):
     event = get_object_or_404(Event, id=event_id)
-    title = request.POST.get("title")
-    text = request.POST.get("text")
-    if title and text:
-        Comment.objects.create(event=event, user=request.user, title=title, text=text)
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
+
+        errors = Comment.validate(title, text, event)
+
+        if errors:
+            return render(request, "app/event/event_detail.html",{
+                "event": event,
+                "comments": Comment.objects.filter(event=event),
+                "errors": errors,
+                "data": request.POST
+            })
+
+    Comment.objects.create(event=event, user=request.user, title=title, text=text)
     return redirect("event_detail", id=event_id)
 
 @login_required

@@ -1,13 +1,22 @@
 <div class="mt-4 ">
+    {% if errors %}
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+            {% for field, error in errors.items %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
     <form method="POST" action="{% url 'comment_create' event.id %}">
         {% csrf_token %}
         <div class="mb-3">
             <label for="title" class="form-label">Título del comentario *</label>
-            <input type="text" class="form-control" id="title" name="title" placeholder="Escriba un título para tu comentario..." required>
+            <input type="text" class="form-control" id="title" name="title" placeholder="Escriba un título para tu comentario..." value="{{ data.title|default_if_none:'' }}" required>
         </div>
         <div class="mb-3">
             <label for="text" class="form-label">Contenido del comentario *</label>
-            <textarea class="form-control" id="text" name="text" rows="3" placeholder="Escribe tu comentario aquí..." required></textarea>
+            <textarea class="form-control" id="text" name="text" rows="3" placeholder="Escribe tu comentario aquí..." required>{{ data.text|default_if_none:'' }}</textarea>
         </div>
         <button type="submit" class="btn btn-primary">Publicar comentario</button>
     </form>
