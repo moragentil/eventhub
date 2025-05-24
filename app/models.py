@@ -313,21 +313,29 @@ class Ticket(models.Model):
 
     @classmethod
     def new(cls, quantity, type, user, event):
-        errors = Ticket.validate(quantity, type, event)
+        errors = cls.validate(quantity, type, event)
+
+        capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
+        sold = sum(ticket.quantity for ticket in event.tickets.all())
+        if sold + quantity > capacity:
+            errors["general"] = "Ya se vendieron todas las entradas para este evento."
+
+        user_tickets = sum(t.quantity for t in cls.objects.filter(user=user, event=event))
+        if user_tickets + quantity > 4:
+            errors["quantity"] = "No puedes comprar más de 4 entradas para este evento."
 
         if errors:
-            return False, errors
+            return None, errors 
 
         ticket = cls.objects.create(
-            buy_date = timezone.now(),
-            ticket_code = code_generator(),
-            quantity = quantity,
-            type = type,
-            user = user,
-            event = event
+            quantity=quantity,
+            type=type,
+            user=user,
+            event=event
         )
 
-        return True, ticket
+        return ticket, {}
+
 
     @classmethod
     def update(cls, ticket_id, quantity=None, type=None, used=None):
