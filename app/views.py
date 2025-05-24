@@ -883,10 +883,44 @@ def comment_detail(request, comment_id):
 @login_required
 def comment_delete(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
+    event_id = comment.event.id
 
     if comment.user == request.user or request.user.is_organizer:
         if request.method == "POST":
             comment.delete()
-            return redirect("comments_list")
+            if request.user.is_organizer:
+                messages.success(request, "Comentario eliminado correctamente.")
+                return redirect("comments_list")
+            else:
+                messages.success(request, "Comentario eliminado correctamente.")
+                return redirect("event_detail", id=event_id)
 
-    return redirect("comments_list")
+    if request.user.is_organizer:
+        return redirect("comments_list")
+    else:
+        messages.error(request, "No tienes permiso para eliminar este comentario.")
+        return redirect("event_detail", id=event_id)
+
+@login_required
+def comment_edit(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+    if comment.user != request.user:
+        messages.error(request, "No tienes permiso para editar este comentario.")
+        return redirect("event_detail", id=comment.event.id)
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
+
+        errors = Comment.validate(title, text, comment.event)
+        if errors:
+            messages.error(request, "Por favor corrige los errores del formulario.")
+            return redirect("event_detail", id=comment.event.id)
+
+        comment.title = title
+        comment.text = text
+        comment.save()
+        messages.success(request, "Comentario actualizado correctamente.")
+        return redirect("event_detail", id=comment.event.id)
+
+    return redirect("event_detail", id=comment.event.id)
