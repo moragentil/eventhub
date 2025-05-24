@@ -23,19 +23,16 @@
                                         <a class="dropdown-item" href="#" onclick="event.preventDefault(); toggleEditForm('{{ comment.id }}');">Editar</a>
                                     </li>
                                     <li>
-                                        <!-- Botón para abrir el modal -->
                                         <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteModal{{ comment.id }}">Eliminar</a>
                                     </li>
                                 </ul>
                             </div>
                             {% endif %}
                         </div>
-                        <!-- Vista normal -->
                         <div id="comment-view-{{ comment.id }}">
                             <h5 class="mb-1">{{ comment.title }}</h5>
                             <p class="mb-1">{{ comment.text }}</p>
                         </div>
-                        <!-- Formulario de edición oculto por defecto -->
                         <form id="comment-edit-form-{{ comment.id }}" method="POST" action="{% url 'comment_edit' comment.id %}" class="d-none">
                             {% csrf_token %}
                             <div class="mb-2">
@@ -47,7 +44,6 @@
                             <button type="submit" class="btn btn-sm btn-success">Guardar</button>
                             <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEditForm('{{ comment.id }}')">Cancelar</button>
                         </form>
-                        <!-- Modal de confirmación para eliminar -->
                         <div class="modal fade" id="deleteModal{{ comment.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ comment.id }}" aria-hidden="true">
                           <div class="modal-dialog">
                             <div class="modal-content">

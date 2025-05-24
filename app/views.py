@@ -885,7 +885,12 @@ def comment_delete(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
     event_id = comment.event.id
 
-    if comment.user == request.user or request.user.is_organizer:
+    if request.user.is_organizer:
+        if comment.event.organizer != request.user:
+            messages.error(request, "No tienes permiso para eliminar comentarios de eventos que no organizaste.")
+            return redirect("comments_list")
+
+    if comment.user == request.user or (request.user.is_organizer and comment.event.organizer == request.user):
         if request.method == "POST":
             comment.delete()
             if request.user.is_organizer:
