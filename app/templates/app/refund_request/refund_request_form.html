@@ -5,7 +5,7 @@
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <h1 class="mb-4">
-                {% if refund_request.id %}
+                {% if refund_request and refund_request.id %}
                     Editar Solicitud de Reembolso
                 {% else %}
                     Crear Solicitud de Reembolso
@@ -13,61 +13,35 @@
             </h1>
             <div class="card">
                 <div class="card-body">
-                    <form action="{% if refund_request.id %}{% url 'refund_request_edit' refund_request.id %}{% else %}{% url 'refund_request_form' %}{% endif %}" method="POST">
+                    <form action="{% if refund_request and refund_request.id %}{% url 'refund_request_edit' refund_request.id %}{% else %}{% url 'refund_request_form' %}{% endif %}" method="POST">
                         {% csrf_token %}
                         <div class="vstack gap-3">
-                            {% if request.method == 'POST' and messages %}
-                                <div class="container mt-3">
-                                    {% for message in messages %}
-                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                                            {{ message }}
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                            <div>
+                                <label for="ticket_code_display" class="form-label">Código del Ticket</label>
+                                <input class="form-control"
+                                       id="ticket_code_display"
+                                       type="text"
+                                       value="{{ ticket_code }}"
+                                       disabled />
+                                <input type="hidden" name="ticket_code" value="{{ ticket_code }}">
+                            </div>
 
                             <div>
-                                <label for="approved" class="form-label">Aprobado</label>
-                                <input class="form-check-input" 
-                                    type="checkbox" 
-                                    id="approved" 
-                                    name="approved" 
-                                    {% if refund_request and refund_request.approved %}checked{% endif %} 
-                                />
+                                <label for="reason" class="form-label">Motivo del Reembolso</label>
+                                <textarea class="form-control"
+                                          id="reason"
+                                          name="reason"
+                                          rows="4"
+                                          required>{% if refund_request %}{{ refund_request.reason }}{% endif %}</textarea>
                             </div>
-                            <div>
-                                <label for="approval_date" class="form-label">Fecha de Aprobación</label>
-                                <input class="form-control" 
-                                    id="approval_date" 
-                                    type="date" 
-                                    name="approval_date" 
-                                    {% if refund_request.approval_date %}value="{{ refund_request.approval_date|date:'Y-m-d' }}"{% endif %}
-                                />
-                            </div>
-                            <div>
-                                <label for="ticket_code" class="form-label">Codigo del Ticket</label>
-                                <input class="form-control" 
-                                    id="ticket_code"
-                                    type="text"
-                                    name="ticket_code" 
-                                    value="{% if refund_request.ticket_code %}{{ refund_request.ticket_code }}{% endif %}" 
-                                    required 
-                                />
-                            </div>
-                            <div>
-                                <label for="reason" class="form-label">Motivo</label>
-                                <textarea class="form-control" 
-                                        id="reason" 
-                                        name="reason" 
-                                        rows="4" 
-                                        required>
-                                    {% if refund_request %}{{ refund_request.reason }}{% endif %}
-                                </textarea>
-                            </div>
+
                             <div>
                                 <button type="submit" class="btn btn-primary">
-                                    {% if refund_request.id %}Actualizar Solicitud{% else %}Crear Solicitud{% endif %}
+                                    {% if refund_request and refund_request.id %}
+                                        Actualizar Solicitud
+                                    {% else %}
+                                        Crear Solicitud
+                                    {% endif %}
                                 </button>
                             </div>
                         </div>
@@ -78,3 +52,4 @@
     </div>
 </div>
 {% endblock %}
+

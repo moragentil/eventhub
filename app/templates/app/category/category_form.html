@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h1 class="mb-4">
+                {% if category %}
+                    Editar Categoría
+                {% else %}
+                    Crear Categoría
+                {% endif %}
+            </h1>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nombre</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="name"
+                                name="name"
+                                value="{{ category.name|default:'' }}"
+                                required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descripción</label>
+                            <textarea
+                                class="form-control"
+                                id="description"
+                                name="description"
+                                rows="4"
+                                required>{{ category.description|default:'' }}</textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="is_active"
+                                name="is_active"
+                                {% if category.is_active or category is None %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Activa</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            {% if category %}
+                                Actualizar Categoría
+                            {% else %}
+                                Crear Categoría
+                            {% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

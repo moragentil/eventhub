@@ -50,6 +50,22 @@
                                 </li>
                                 
 
+                                <li class="nav-item">
+                                    {% navbar_link 'category_list' 'Categorías' %}
+                                </li>
+
+                            {% endif %}
+
+                           
+
+                            {% if not user.is_organizer %}
+                                <li class="nav-item">
+                                    {% navbar_link 'user_refund_requests' 'Mis Reembolsos' %}
+                                </li>
+
+                                <li class="nav-item">
+                                    {% navbar_link 'user_ticket_list' 'Mis Entradas' %}
+                                </li>
                             {% endif %}
 
                             <li class="nav-item">

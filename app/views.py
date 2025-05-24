@@ -6,11 +6,11 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
+from .models import Event, User, Ticket, TicketType,Rating
 from django.db.models import Count
-
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category
 
 
 def register(request):
@@ -37,7 +37,7 @@ def register(request):
                 email=email, username=username, password=password, is_organizer=is_organizer
             )
             login(request, user)
-            return redirect("events")
+            return redirect("home")
 
     return render(request, "accounts/register.html", {})
 
@@ -55,23 +55,43 @@ def login_view(request):
             )
 
         login(request, user)
-        return redirect("events")
+        return redirect("home")
 
     return render(request, "accounts/login.html")
 
 
 def home(request):
-    return render(request, "home.html")
+    user = request.user
+    if not user.is_authenticated:
+        return render(request, "home_public.html")
+    if getattr(user, "is_organizer", False):
+        return render(request, "home_organizer.html", {"name": user.username})
+    return render(request, "home_user.html", {"name": user.username})
 
 
 @login_required
 def events(request):
-    events = Event.objects.all().order_by("scheduled_at")
-    return render(
-        request,
-        "app/event/events.html",
-        {"events": events, "user_is_organizer": request.user.is_organizer},
-    )
+    events = Event.objects.all()
+    venues = Venue.objects.all()
+    categories = Category.objects.all()
+
+    date = request.GET.get("date")
+    venue_id = request.GET.get("venue")
+    category_id = request.GET.get("category")
+
+    if date:
+        events = events.filter(scheduled_at__date=date)
+    if venue_id:
+        events = events.filter(venue_id=venue_id)
+    if category_id:
+        events = events.filter(category_id=category_id)
+
+    return render(request, "app/event/events.html", {
+        "events": events,
+        "venues": venues,
+        "categories": categories,
+        "user_is_organizer": request.user.is_organizer,
+    })
 
 
 @login_required
@@ -79,7 +99,8 @@ def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
     comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time, "comments": comments})
+    user_is_organizer = getattr(request.user, "is_organizer", False)
+    return render(request, "app/event/event_detail.html", {"event": event, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
 
 
 @login_required
@@ -115,6 +136,7 @@ def event_form(request, id=None):
         price_general = request.POST.get("price_general")
         price_vip = request.POST.get("price_vip")
         venue_id = request.POST.get("venue")
+        category_id = request.POST.get("category")
 
         try:
             scheduled_at = timezone.make_aware(
@@ -135,26 +157,31 @@ def event_form(request, id=None):
             errors["price_vip"] = "Precio VIP inválido."
 
         venue = get_object_or_404(Venue, pk=venue_id)
+        category = get_object_or_404(Category, pk=category_id) if category_id else None
 
         if id is None:
             success, validation_errors = Event.new(
                 title, description, scheduled_at, user,
-                price_general, price_vip, venue
+                price_general, price_vip, venue,
+                category=category
             )
         else:
             event = get_object_or_404(Event, pk=id)
-            success, validation_errors = event.update(
-                title, description, scheduled_at, user,
-                price_general, price_vip, venue
-            )
+            event.title = title
+            event.description = description
+            if scheduled_at is not None:
+                event.scheduled_at = scheduled_at
+            event.organizer = request.user
+            event.price_general = price_general
+            event.price_vip = price_vip
+            event.save()  
 
-        if not success and validation_errors:
-            errors.update(validation_errors)
-        else:
-            return redirect("events")
+        return redirect("events")
 
     elif id:
         event = get_object_or_404(Event, pk=id)
+        
+    categories = Category.objects.filter(is_active=True)
 
     return render(
         request,
@@ -165,9 +192,8 @@ def event_form(request, id=None):
             "errors": errors,
             "editing": id is not None,
             "user_is_organizer": user.is_organizer,
-        },
+            "categories": categories},
     )
-
 
 
 @login_required
@@ -355,67 +381,49 @@ def user_refund_requests(request):
 
 @login_required
 def refund_request_form(request, id=None):
-    user = request.user    
+    user = request.user
     refund_request = get_object_or_404(RefundRequest, pk=id) if id else None
-    
+    ticket_code_initial = request.GET.get("ticket_code") if request.method == "GET" else None
+
     if request.method == "POST":
-        approved = request.POST.get("approved") is not None
-        status = 'aprobado' if approved else 'pendiente'  
-        
-        ticket_code = request.POST.get("ticket_code")
         reason = request.POST.get("reason")
-        approval_date_str = request.POST.get("approval_date")
-        
-        errors = []
+        ticket_code = request.POST.get("ticket_code")
 
-        if approval_date_str:
-            try:
-                approval_date = dt.strptime(approval_date_str, "%Y-%m-%d").date()
-            except ValueError:
-                errors.append("Fecha inválida. Debe tener formato AAAA-MM-DD.")
+        ticket = Ticket.objects.filter(ticket_code=ticket_code).first()
+
+        if id is None:
+            refund_instance, errors = RefundRequest.new(user, "pendiente", None, ticket, reason)
         else:
-            approval_date = None
+            if refund_request:
+                success, errors = refund_request.update("pendiente", None, reason)
+            else:
+                success, errors = False, {"refund_request": "Solicitud de reembolso no encontrada."}
 
-        if len(reason.split()) < 1:
-            errors.append("El motivo es requerido")
-        
-        if approved is False and approval_date is not None:
-            errors.append("La fecha de aprobación no puede ser ingresada si la solicitud no fue aprobada")
-        elif approved is True and approval_date is None:
-            errors.append("La fecha de aprobación es requerida si la solicitud fue aprobada")
-
-        ticket = Ticket.objects.filter(ticket_code=ticket_code).first()  
-        if ticket is None:
-            errors.append("El ticket con el código ingresado no existe")
-        elif RefundRequest.objects.filter(ticket=ticket).exists() and refund_request is None:
-            errors.append("Ya se ha solicitado un reembolso para ese ticket.")
-        elif ticket.used:  
-            errors.append("El ticket ya ha sido usado y no puede ser reembolsado")
-        elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():  
-            errors.append("El ticket con el código ingresado no es válido para solicitar reembolso, han pasado más de 30 días desde el evento")
 
         if errors:
-            for error in errors:
-                messages.error(request, error)
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
             return render(
                 request,
                 "app/refund_request/refund_request_form.html",
-                {"refund_request": refund_request}
+                {
+                    "refund_request": refund_request,
+                    "ticket_code": ticket_code,
+                }
             )
-
-        if id is None:
-            RefundRequest.new(user, status, approval_date, ticket, reason)
-        else:
-            if refund_request:
-                refund_request.update(status, approval_date, reason)
 
         return redirect("user_refund_requests")
 
-    return render(
-        request,
-        "app/refund_request/refund_request_form.html",
-        {"refund_request": refund_request},
-    )
+    else:
+        ticket_code = refund_request.ticket.ticket_code if refund_request else ticket_code_initial
+        return render(
+            request,
+            "app/refund_request/refund_request_form.html",
+            {
+                "refund_request": refund_request,
+                "ticket_code": ticket_code,
+            },
+        )
 
 
 
@@ -434,87 +442,176 @@ def refund_request_detail(request, id):
     refund_request = get_object_or_404(RefundRequest, pk=id)
     return render(request, "app/refund_request/refund_request_detail.html", {"refund_request": refund_request})
 
+
 @login_required
 def venue(request):
-    venues = Venue.objects.all().order_by("name")
-    return render(
-        request,
-        "app/venue/venue.html",
-        {"venues": venues, "user_is_organizer": request.user.is_organizer},
-    )
+    venues = Venue.objects.all()
+    return render(request, "app/venue/venue.html", {"venues": venues})
+
 
 @login_required
+@organizer_required
 def venue_form(request, id=None):
-    user = request.user
-    if not user.is_organizer:
-        return redirect("events")
-    
+    venue_instance = get_object_or_404(Venue, pk=id) if id else None
+    form_data = {}
+
     if request.method == "POST":
-        name = request.POST.get("name")
-        address = request.POST.get("address")
-        city = request.POST.get("city")
-        contact = request.POST.get("contact")
-
+        name = request.POST.get("name", "").strip()
+        address = request.POST.get("address", "").strip()
+        city = request.POST.get("city", "").strip()
+        contact = request.POST.get("contact", "").strip()
         capacity_raw = request.POST.get("capacity")
+
+        form_data = {
+            "name": name,
+            "address": address,
+            "city": city,
+            "capacity": capacity_raw,
+            "contact": contact,
+        }
+
         try:
-            capacity = int(capacity_raw)
-        except (TypeError, ValueError):
+            capacity = int(capacity_raw) if capacity_raw else None
+        except ValueError:
             capacity = None
+            if not capacity_raw:
+                messages.error(request, "capacity: La capacidad es obligatoria.")
+            else:
+                messages.error(request, "capacity: La capacidad debe ser un número válido.")
 
-        if id is None:
-            success, errors = Venue.new(name, address, city, capacity, contact)
-            if not success:
-                if errors:
-                    for field, error in errors.items():
-                        messages.error(request, f"{field}: {error}")
-                    return render(request, "app/venue/venue_form.html", {
-                        "venue": None,
-                })
+        if venue_instance:
+            success, errors = venue_instance.update(name, address, city, capacity, contact)
         else:
-            venue = get_object_or_404(Venue, pk=id)
-            success, errors = venue.update(name, address, city, capacity, contact)
-            if not success:
-                if errors:
-                    for field, error in errors.items():
-                        messages.error(request, f"{field}: {error}")
-                    return render(request, "app/venue/venue_form.html", {
-                        "venue": venue,
-                    })
+            venue_instance, errors = Venue.new(name, address, city, capacity, contact)
+            success = venue_instance is not None
 
-        return redirect("venue")
+        if not success and errors:
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
+            return render(request, "app/venue/venue_form.html", {
+                "venue": venue_instance,
+                "form_data": form_data
+            })
 
-    return render(
-        request,
-        "app/venue/venue_form.html",
-        {"venue": get_object_or_404(Venue, pk=id) if id else None},
-    )
+        messages.success(request, "Lugar guardado exitosamente!")
+        return redirect("venue_detail", id=venue_instance.pk)
+
+    return render(request, "app/venue/venue_form.html", {
+        "venue": venue_instance,
+        "form_data": form_data
+    })
+
 
 @login_required
+@organizer_required
 def venue_delete(request, id):
-    user = request.user
-    if not user.is_organizer:
-        return redirect("events")
-    
+    venue = get_object_or_404(Venue, pk=id)
+
     if request.method == "POST":
-        venue = get_object_or_404(Venue, pk=id)
-        if not Event.objects.filter(venue=venue).exists():
+        if Event.objects.filter(venue=venue).exists():
+            messages.error(request, "No se puede eliminar el lugar porque tiene eventos asociados.")
+        else:
             venue.delete()
             messages.success(request, "El lugar ha sido eliminado correctamente.")
-        else:
-            messages.error(request, "No se puede eliminar el lugar porque tiene eventos asociados.")
-            return render(
-                request,
-                "app/venue/venue.html",
-                {"error": "No se puede eliminar el lugar porque tiene eventos asociados."}
-            )
-        
-    return redirect("venue")
+        return redirect("venue")
+
+    return render(request, "app/venue/venue_confirm_delete.html", {"venue": venue})
+
 
 @login_required
 def venue_detail(request, id):
     venue = get_object_or_404(Venue, pk=id)
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
+
+@login_required
+def rating_create(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+
+    has_ticket = Ticket.objects.filter(event=event, user=request.user).exists()
+    if not has_ticket:
+        messages.error(request, "Debes comprar una entrada para calificar este evento.")
+        return redirect("event_detail", id=event_id)
+
+    if request.method == "POST":
+        title = request.POST.get("title")
+        text = request.POST.get("text")
+        rating_value = request.POST.get("rating")
+
+        try:
+            rating_value = int(rating_value)
+        except ValueError:
+            rating_value = None
+
+
+        if rating_value is None or rating_value < 1 or rating_value > 10:
+            messages.error(request, "La calificación debe estar entre 1 y 10.")
+            return render(request, "app/rating/rating_form.html", {"event": event, "data": request.POST})
+
+        success, result = Rating.new(
+            title=title,
+            text=text,
+            rating=rating_value,
+            created_at=timezone.now(),
+            user=request.user,
+            event=event,
+        )
+
+        if success:
+            messages.success(request, "Calificación creada exitosamente.")
+            return redirect("event_detail", id=event_id)
+        else:
+            return render(
+                request,
+                "app/rating/rating_form.html",
+                {"errors": result, "event": event, "data": request.POST},
+            )
+    return render(request, "app/rating/rating_form.html", {"event": event})
+
+@login_required
+def rating_delete(request, rating_id):
+    rating = get_object_or_404(Rating, pk=rating_id)
+
+    if request.method == "POST":
+        rating.delete()
+        messages.success(request, "Calificacion eliminada correctamente")
+        return redirect("event_detail", id=rating.event.id)
+    
+    return redirect("event_detail", id=rating.event.id)
+
+@login_required
+def rating_edit(request, rating_id):
+    rating = get_object_or_404(Rating, pk=rating_id)
+
+    if rating.user != request.user:
+        messages.error(request, "No tenés permiso para editar esta calificación.")
+        return redirect("event_detail", id=rating.event.id)
+
+    if request.method == "POST":
+        title = request.POST.get("title")
+        text = request.POST.get("text")
+        rating_value = request.POST.get("rating")
+
+        try:
+            rating_value = int(rating_value)
+        except (ValueError, TypeError):
+            rating_value = None
+
+        success, result = rating.update(title, text, rating_value)
+
+        if success:
+            messages.success(request, "Calificación actualizada correctamente.")
+        else:
+            messages.error(request, "Error al actualizar la calificación.")
+
+        return redirect("event_detail", id=rating.event.id)
+
+    return redirect("event_detail", id=rating.event.id)
+
+@login_required
+def user_rating_list(request):
+    ratings = Rating.objects.filter(user=request.user)
+    return render(request, "app/rating/rating_list.html", {"ratings": ratings})
 
 
 @login_required
@@ -626,12 +723,13 @@ def notification_form(request, id=None):
                 else:
                     return redirect("notifications")
             else:
-                notification_instance.title = title
-                notification_instance.message = message_content
-                notification_instance.priority = priority
-                notification_instance.save() 
-                if target_users_queryset is not None:
-                    notification_instance.user.set(target_users_queryset)
+                if notification_instance:
+                    notification_instance.title = title
+                    notification_instance.message = message_content
+                    notification_instance.priority = priority
+                    notification_instance.save() 
+                    if target_users_queryset is not None:
+                        notification_instance.user.set(target_users_queryset)
                 return redirect("notifications")
 
         context = {
@@ -668,6 +766,88 @@ def mark_all_notifications_as_read(request):
         notification.is_read = True
         notification.save()
     return redirect("notifications")
+@login_required
+@organizer_required
+
+
+def category_list(request):
+    categories = Category.objects.all()
+    return render(
+        request,
+        "app/category/categories.html",
+        {"categories": categories}
+    )
+
+
+@login_required
+@organizer_required
+def category_form(request, id=None):
+    category = get_object_or_404(Category, pk=id) if id else None
+
+    if request.method == "POST":
+        name = request.POST.get("name")
+        description = request.POST.get("description")
+        is_active = request.POST.get("is_active") == "on"
+
+        errors = {}
+
+        if not name:
+            errors["name"] = "El nombre es requerido."
+        if not description:
+            errors["description"] = "La descripción es requerida."
+
+        if errors:
+            for field, error in errors.items():
+                messages.error(request, f"{field}: {error}")
+            return render(request, "app/category/category_form.html", {
+                "category": category,
+            })
+
+        if category is None:
+            Category.objects.create(
+                name=name,
+                description=description,
+                is_active=is_active
+            )
+        else:
+            category.name = name
+            category.description = description
+            category.is_active = is_active
+            category.save()
+
+        return redirect("category_list")
+
+    return render(
+        request,
+        "app/category/category_form.html",
+        {"category": category}
+    )
+
+
+@login_required
+@organizer_required
+def category_delete(request, id):
+    if request.method == "POST":
+        category = get_object_or_404(Category, pk=id)
+
+        if Event.objects.filter(category=category).exists():
+            messages.error(request, "No se puede eliminar la categoría porque tiene eventos asociados.")
+            return redirect("category_list")
+
+        category.delete()
+        messages.success(request, "Categoría eliminada correctamente.")
+
+    return redirect("category_list")
+
+
+@login_required
+@organizer_required
+def category_detail(request, id):
+    category = get_object_or_404(Category, pk=id)
+
+    return render(request, "app/category/category_detail.html", {
+        "category": category,
+    })
 
 @login_required
 def comments_list(request):
