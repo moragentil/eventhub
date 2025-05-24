@@ -6,7 +6,7 @@ from django.utils import timezone
 
 User = get_user_model()
 
-class TicketTests(TestCase):
+class TicketCapacityUnitTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username='testuser', password='12345')
@@ -20,7 +20,7 @@ class TicketTests(TestCase):
             organizer=self.user  
         )
 
-    def test_cannot_sell_more_tickets_than_capacity(self):
+    def test_no_ticket_created_when_event_is_full(self):
         Ticket.objects.create(user=self.user, event=self.event, quantity=100)
 
         ticket, errors = Ticket.new(
