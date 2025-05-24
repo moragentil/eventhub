@@ -524,6 +524,12 @@ def venue_detail(request, id):
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
 
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from app.models import Rating, Event, Ticket
+
 @login_required
 def rating_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -534,21 +540,29 @@ def rating_create(request, event_id):
         return redirect("event_detail", id=event_id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
             rating_value = int(rating_value)
-        except ValueError:
+        except (ValueError, TypeError):
             rating_value = None
 
+        errors = Rating.validate(title, text, rating_value, event)
 
-        if rating_value is None or rating_value < 1 or rating_value > 10:
-            messages.error(request, "La calificación debe estar entre 1 y 10.")
-            return render(request, "app/rating/rating_form.html", {"event": event, "data": request.POST})
+        if errors:
+            return render(
+                request,
+                "app/rating/rating_form.html",
+                {
+                    "errors": errors,
+                    "event": event,
+                    "data": {"title": title, "text": text, "rating": rating_value}
+                },
+            )
 
-        success, result = Rating.new(
+        success, rating = Rating.new(
             title=title,
             text=text,
             rating=rating_value,
@@ -560,13 +574,12 @@ def rating_create(request, event_id):
         if success:
             messages.success(request, "Calificación creada exitosamente.")
             return redirect("event_detail", id=event_id)
-        else:
-            return render(
-                request,
-                "app/rating/rating_form.html",
-                {"errors": result, "event": event, "data": request.POST},
-            )
+
+        messages.error(request, "Ocurrió un error al crear la calificación.")
+        return redirect("event_detail", id=event_id)
+
     return render(request, "app/rating/rating_form.html", {"event": event})
+
 
 @login_required
 def rating_delete(request, rating_id):
@@ -574,10 +587,10 @@ def rating_delete(request, rating_id):
 
     if request.method == "POST":
         rating.delete()
-        messages.success(request, "Calificacion eliminada correctamente")
-        return redirect("event_detail", id=rating.event.id)
+        messages.success(request, "Calificación eliminada correctamente.")
     
     return redirect("event_detail", id=rating.event.id)
+
 
 @login_required
 def rating_edit(request, rating_id):
@@ -588,8 +601,8 @@ def rating_edit(request, rating_id):
         return redirect("event_detail", id=rating.event.id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
@@ -597,14 +610,13 @@ def rating_edit(request, rating_id):
         except (ValueError, TypeError):
             rating_value = None
 
-        success, result = rating.update(title, text, rating_value)
+        success, errors = rating.update(title, text, rating_value)
 
         if success:
             messages.success(request, "Calificación actualizada correctamente.")
         else:
             messages.error(request, "Error al actualizar la calificación.")
-
-        return redirect("event_detail", id=rating.event.id)
+            # Podrías redirigir con errores si querés volver a mostrar el formulario
 
     return redirect("event_detail", id=rating.event.id)
 
