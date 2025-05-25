@@ -21,7 +21,7 @@
                     <form action="{% if notification.id %}{% url 'notification_edit' notification.id %}{% else %}{% url 'notification_form' %}{% endif %}" method="POST">
                         {% csrf_token %}
                         <div class="vstack gap-4">
-                            {% if notification.method == 'POST' and messages %}
+                            {% if request.method == 'POST' and messages %}
                                 <div class="container mt-3">
                                     {% for message in messages %}
                                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -32,49 +32,69 @@
                                 </div>
                             {% endif %}
 
-                            <div>
-                                <label for="title" class="form-label">Título de la Notificación</label>
-                                <input type="text" class="form-control" id="title" name="title" value="{{ notification.title }}" required maxlength="50"></input>
-                            </div>
-                            <div>
-                                <label for="message" class="form-label">Mensaje de la Notificación</label>
-                                <textarea class="form-control" id="message" name="message" rows="4" required maxlength="500">{{ notification.message }}</textarea>
-                            </div>
-                            <div>
-                                <label class="form-label">Destinatarios</label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="recipient_type" id="recipient_all" value="all" checked onchange="toggleUserSelect()">
-                                    <label class="form-check-label" for="recipient_all">
-                                        Todos los usuarios
-                                    </label>
+                        <div>
+                            <label for="title" class="form-label">Título de la Notificación</label>
+                            <input type="text" class="form-control {% if errors.title %}is-invalid{% endif %}" id="title" name="title" value="{{ notification.title|default:'' }}"  maxlength="50">
+                            {% if errors.title %}
+                                <div class="invalid-feedback">
+                                    {{ errors.title }}
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="recipient_type" id="recipient_specific" value="specific" onchange="toggleUserSelect()">
-                                    <label class="form-check-label" for="recipient_specific">
-                                        Usuario específico
-                                    </label>
+                            {% endif %}
+                        </div>
+                        
+                        <div>
+                            <label for="message" class="form-label">Mensaje de la Notificación</label>
+                            <textarea class="form-control {% if errors.message %}is-invalid{% endif %}" id="message" name="message" rows="4"  maxlength="500">{{ notification.message|default:'' }}</textarea>
+                            {% if errors.message %}
+                                <div class="invalid-feedback">
+                                    {{ errors.message }}
                                 </div>
-                            </div>
+                            {% endif %}
+                        </div>
 
-                            <div id="user-select-div" style="display: none;">
-                                <label for="specific_user" class="form-label">Selecciona un usuario</label>
-                                <select class="form-select" id="specific_user" name="specific_user">
-                                    <option value="" selected disabled>Selecciona un usuario</option>
-                                    {% for user in users %} 
-                                        {% if not user.is_organizer %} 
-                                            <option value="{{ user.id }}">{{ user.username }}</option>
-                                        {% endif %}
-                                    {% endfor %}
-                                </select>
+                        <div>
+                            <label class="form-label">Destinatarios</label>
+                            <div class="form-check">
+                                <input class="form-check-input {% if errors.recipient_type %}is-invalid{% endif %}" type="radio" name="recipient_type" id="recipient_all" value="all" {% if selected_recipient_type == 'all' or not selected_recipient_type %}checked{% endif %}onchange="toggleUserSelect()">
+                                <label class="form-check-label" for="recipient_all">Todos los usuarios</label>
                             </div>
-                            <div>
-                                <label for="priority" class="form-label">Prioridad</label>
-                                <select class="form-select" id="priority" name="priority" required>
-                                    <option value="Low">Baja</option>
-                                    <option value="Medium">Media</option>
-                                    <option value="High">Alta</option>
-                                </select>
+                            <div class="form-check">
+                                <input class="form-check-input {% if errors.recipient_type %}is-invalid{% endif %}" type="radio" name="recipient_type" id="recipient_specific" value="specific" {% if selected_recipient_type == 'specific' %}checked{% endif %}onchange="toggleUserSelect()">
+                                <label class="form-check-label" for="recipient_specific">Usuario específico</label>
                             </div>
+                            {% if errors.recipient_type %}
+                                <div class="text-danger small mt-1">
+                                    {{ errors.recipient_type }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div id="user-select-div" style="{% if selected_recipient_type == 'specific' %}display: block;{% else %}display: none;{% endif %}">
+                            <label for="specific_user" class="form-label">Selecciona un usuario</label>
+                            <select 
+                                class="form-select {% if errors.recipient_type %}is-invalid{% endif %}" id="specific_user" name="specific_user"{% if selected_recipient_type != 'specific' %}disabled{% endif %}>
+                                <option value="" disabled {% if not selected_specific_user_id %}selected{% endif %}>Selecciona un usuario</option>
+                                {% for user in users %}
+                                    <option value="{{ user.id }}" {% if user.id|stringformat:"s" == selected_specific_user_id|stringformat:"s" %}selected{% endif %}>
+                                        {{ user.username }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            {% if errors.recipient_type %}
+                                <div class="invalid-feedback">
+                                    {{ errors.recipient_type }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label for="priority" class="form-label">Prioridad</label>
+                            <select class="form-select" id="priority" name="priority" required>
+                                {% for value, label in priorities %}
+                                    <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                             <div class="text-end">
                                 <button type="submit" class="btn btn-primary px-4">
                                     {% if notification.id %}
@@ -130,49 +150,35 @@
 
 <script>
     function toggleUserSelect() {
-        const specificRadio = document.getElementById('recipient_specific');
-        const userSelectDiv = document.getElementById('user-select-div');
-        const userSelect = document.getElementById('specific_user');
-        
+        const specificRadio = document.getElementById("recipient_specific");
+        const userSelectDiv = document.getElementById("user-select-div");
+        const userSelect = document.getElementById("specific_user");
+
         if (specificRadio.checked) {
-            userSelectDiv.style.display = 'block';
-            userSelect.required = true;
+            userSelectDiv.style.display = "block";
+            userSelect.disabled = false;
         } else {
-            userSelectDiv.style.display = 'none';
-            userSelect.required = false; 
-            userSelect.value = ""; 
+            userSelectDiv.style.display = "none";
+            userSelect.disabled = true;
         }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-
-        const isEditing = "{{ notification.id|yesno:'true,false' }}";
-        const recipientType = "{{ recipient_type|default:'all' }}"; 
-        const specificUserId = "{{ specific_user_id|default:'' }}"; 
-
-        if (isEditing) {  
-            if (recipientType === 'specific') {
-                const specificRadio = document.getElementById('recipient_specific');
-                if (specificRadio) {
-                    specificRadio.checked = true;
-                }
-                const userSelect = document.getElementById('specific_user');
-                if (userSelect && specificUserId) {
-                    userSelect.value = specificUserId;
-                }
-            } else {
-                const allRadio = document.getElementById('recipient_all');
-                if (allRadio) {
-                    allRadio.checked = true;
-                }
-            }
-        } else {
-            const allRadio = document.getElementById('recipient_all');
-            if (allRadio) {
-                allRadio.checked = true;
-            }
+        const selectedRecipientType = "{{ selected_recipient_type }}";
+        
+        if (selectedRecipientType === "specific") {
+            const specificRadio = document.getElementById("recipient_specific");
+            specificRadio.checked = true;
+        } else if (selectedRecipientType === "all") {
+            const allRadio = document.getElementById("recipient_all");
+            allRadio.checked = true;
         }
-
+        
+        const radios = document.querySelectorAll('input[name="recipient_type"]');
+        radios.forEach(radio => {
+            radio.addEventListener('change', toggleUserSelect);
+        });
+        
         toggleUserSelect();
     });
 </script>

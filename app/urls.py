@@ -52,4 +52,5 @@ urlpatterns = [
     path("categories/<int:id>/edit/", views.category_form, name="category_edit"),
     path("categories/<int:id>/delete/", views.category_delete, name="category_delete"),
     path("categories/<int:id>/", views.category_detail, name="category_detail"),
+    path("comments/<int:comment_id>/edit/", views.comment_edit, name="comment_edit"),
 ]
