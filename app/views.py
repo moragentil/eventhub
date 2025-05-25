@@ -717,16 +717,6 @@ def notification_form(request, id=None):
                 else:
                     return redirect("notifications")
             else:
-<<<<<<< HEAD
-                if notification_instance:
-                    notification_instance.title = title
-                    notification_instance.message = message_content
-                    notification_instance.priority = priority
-                    notification_instance.save() 
-                    if target_users_queryset is not None:
-                        notification_instance.user.set(target_users_queryset)
-                return redirect("notifications")
-=======
                 success, result = Notification.update(
                     notification_id=id,
                     title=title,
@@ -738,9 +728,7 @@ def notification_form(request, id=None):
                     errors = result
                 else:
                     return redirect("notifications")
->>>>>>> feature/crud-notification
 
-        # Mover este bloque fuera del if anterior - se ejecuta si HAY errores
         if errors:
             context = {
                 "notification": {
@@ -756,8 +744,19 @@ def notification_form(request, id=None):
                 "selected_priority": priority,
             }
             return render(request, "app/notification/notification_form.html", context)
+        
+    if id:
+        all_users_count = User.objects.filter(is_organizer=False).count()
+        notification_users_count = notification_instance.user.count()
+        
+        selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
+        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
+        selected_priority = notification_instance.priority
+    else:
+        selected_recipient_type = "all"
+        selected_specific_user_id = None
+        selected_priority = "low"
 
-    # GET request o formulario inicial
     if id:
         all_users_count = User.objects.filter(is_organizer=False).count()
         notification_users_count = notification_instance.user.count()
@@ -795,10 +794,9 @@ def mark_all_notifications_as_read(request):
         notification.is_read = True
         notification.save()
     return redirect("notifications")
+
 @login_required
 @organizer_required
-
-
 def category_list(request):
     categories = Category.objects.all()
     return render(
