@@ -92,9 +92,9 @@ class Category(models.Model):
     @classmethod
     def validate(cls, name, description):
         errors = {}
-        if not name:
+        if not name or name.strip() == "":
             errors["name"] = "El nombre es requerido."
-        if not description:
+        if not description or description.strip() == "":
             errors["description"] = "La descripción es requerida."
         return errors
 

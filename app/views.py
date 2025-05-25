@@ -489,22 +489,16 @@ def category_form(request, id=None):
     category = get_object_or_404(Category, pk=id) if id else None
 
     if request.method == "POST":
-        name = request.POST.get("name")
-        description = request.POST.get("description")
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
         is_active = request.POST.get("is_active") == "on"
 
-        errors = {}
-
-        if not name:
-            errors["name"] = "El nombre es requerido."
-        if not description:
-            errors["description"] = "La descripción es requerida."
+        errors = Category.validate(name, description)
 
         if errors:
-            for field, error in errors.items():
-                messages.error(request, f"{field}: {error}")
             return render(request, "app/category/category_form.html", {
                 "category": category,
+                "errors": errors,
             })
 
         if category is None:
