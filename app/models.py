@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
@@ -9,6 +9,8 @@ import datetime
 
 class User(AbstractUser):
     is_organizer = models.BooleanField(default=False)
+
+    objects = UserManager() 
 
     @classmethod
     def validate_new_user(cls, email, username, password, password_confirm):
@@ -283,7 +285,7 @@ class Ticket(models.Model):
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
-    used = models.BooleanField(default=False) 
+    used = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
@@ -299,7 +301,6 @@ class Ticket(models.Model):
         elif quantity <= 0:
             errors["quantity"] = "La cantidad debe ser un número mayor que cero."
 
-
         if type is None:
             errors["type"] = "Debe seleccionar un tipo de Ticket."
         elif type not in TicketType.values:
@@ -308,32 +309,37 @@ class Ticket(models.Model):
         if event is None:
             errors["event"] = "Debe seleccionar un Evento."
 
-
         return errors
 
     @classmethod
     def new(cls, quantity, type, user, event):
-        errors = Ticket.validate(quantity, type, event)
+        errors = cls.validate(quantity, type, event)
+
+        capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
+        sold = sum(ticket.quantity for ticket in event.tickets.all())
+        if sold + quantity > capacity:
+            errors["general"] = "Ya se vendieron todas las entradas para este evento."
+
+        user_tickets = sum(t.quantity for t in cls.objects.filter(user=user, event=event))
+        if user_tickets + quantity > 4:
+            errors["quantity"] = "No puedes comprar más de 4 entradas para este evento."
 
         if errors:
-            return False, errors
+            return None, errors 
 
         ticket = cls.objects.create(
-            buy_date = timezone.now(),
-            ticket_code = code_generator(),
-            quantity = quantity,
-            type = type,
-            user = user,
-            event = event
+            quantity=quantity,
+            type=type,
+            user=user,
+            event=event
         )
 
-        return True, ticket
+        return ticket, {}
 
     @classmethod
     def update(cls, ticket_id, quantity=None, type=None, used=None):
         try:
             ticket = cls.objects.get(id=ticket_id)
-            
             errors = {}
 
             if quantity is not None:
@@ -343,7 +349,6 @@ class Ticket(models.Model):
                     errors["quantity"] = "La cantidad debe ser un número mayor a cero."
                 else:
                     ticket.quantity = quantity
-            
 
             if type is not None:
                 if type not in TicketType.values:
@@ -351,33 +356,31 @@ class Ticket(models.Model):
                 else:
                     ticket.type = type
 
-
             if used is not None:
                 if isinstance(used, str):
                     used = used.lower() == "true"
                 elif not isinstance(used, bool):
-                    used = False  
+                    used = False
                 ticket.used = used
 
             if errors:
-                return False, errors
-            
+                return None, errors
+
             ticket.save()
-            return True, ticket
+            return ticket, None
 
         except cls.DoesNotExist:
-            return False, {"ticket": "Ticket no encontrado."}
-        
-    
-    @classmethod 
+            return None, {"ticket": "Ticket no encontrado."}
+
+    @classmethod
     def delete_ticket(cls, ticket_id):
         try:
             ticket = cls.objects.get(id=ticket_id)
             ticket.delete()
             return True, ticket
-        
         except cls.DoesNotExist:
             return False, {"ticket": "Ticket no encontrado."}
+
 
 
 class RefundRequest(models.Model):

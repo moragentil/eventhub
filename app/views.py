@@ -226,13 +226,12 @@ def ticket_create(request, event_id):
         if unit_price is not None:
             total_amount = unit_price * quantity_int
 
-        success, result = Ticket.new(
+        ticket, errors = Ticket.new(
             quantity=quantity_int,
             type=type,
             user=request.user,
             event=event,
         )
-
         if success:
             return render(
                 request,
@@ -251,7 +250,7 @@ def ticket_create(request, event_id):
                 request,
                 "app/ticket/ticket_form.html",
                 {
-                    "errors": result,
+                    "errors": errors,
                     "event": event,
                     "data": data,
                     "unit_price": unit_price,
@@ -278,15 +277,14 @@ def ticket_delete(request, ticket_id):
 
     if request.method == "POST":
         referer = request.META.get('HTTP_REFERER', '')
-        if 'update' in referer or 'tickets/{}/'.format(ticket_id) in referer:
-            ticket.delete()
-            return redirect('user_ticket_list')
-        
         ticket.delete()
+
+        if 'update' in referer or f'tickets/{ticket_id}/' in referer:
+            return redirect('user_ticket_list')
+
         return redirect(referer or 'event_list')
 
     return redirect('event_list')
-
 
 
 @login_required
@@ -304,7 +302,7 @@ def ticket_detail(request, ticket_id):
         total_amount = ticket.quantity * ticket.event.price_vip
     else:
         total_amount = ticket.quantity * ticket.event.price_general
-    
+
     return render(request, 'app/ticket/ticket_detail.html', {
         'ticket': ticket,
         'total_amount': total_amount,
@@ -320,9 +318,14 @@ def ticket_update(request, ticket_id):
         type = request.POST.get("type")
         used = request.POST.get("used")
 
-        success, result = Ticket.update(ticket_id, quantity=int(quantity), type=type, used=used)
+        try:
+            quantity_int = int(quantity)
+        except (ValueError, TypeError):
+            quantity_int = None
 
-        if success:
+        ticket_updated, errors = Ticket.update(ticket_id, quantity=quantity_int, type=type, used=used)
+
+        if ticket_updated:
             if request.user.is_organizer:
                 return redirect("organizer_ticket_list")
             else:
@@ -331,14 +334,18 @@ def ticket_update(request, ticket_id):
             return render(
                 request,
                 "app/ticket/ticket_update.html",
-                {"errors": result, "ticket": ticket, "data": request.POST},
+                {"errors": errors, "ticket": ticket, "data": request.POST},
             )
 
-    return render(request, "app/ticket/ticket_update.html", {
-                                                    "ticket": ticket,
-                                                    "event": ticket.event,
-                                                    "ticket_types": TicketType.choices
-                                                    })
+    return render(
+        request,
+        "app/ticket/ticket_update.html",
+        {
+            "ticket": ticket,
+            "event": ticket.event,
+            "ticket_types": TicketType.choices
+        },
+    )
 
 @login_required
 def user_ticket_list(request):
