@@ -401,7 +401,7 @@ class RefundRequest(models.Model):
         return f"Refund request for {self.ticket.ticket_code} by {self.user.username}"
     
     @classmethod
-    def validate(cls, reason, ticket, existing_instance=None):
+    def validate(cls, user, reason, ticket, existing_instance=None):
         errors = {}
 
         if not reason or len(reason.strip().split()) < 1:
@@ -415,13 +415,16 @@ class RefundRequest(models.Model):
             elif ticket.used:
                 errors["ticket"] = "El ticket ya ha sido usado y no puede ser reembolsado."
             elif ticket.event.scheduled_at + datetime.timedelta(days=30) < timezone.now():
-                errors["ticket"] = "Han pasado más de 30 días desde el evento. No es posible solicitar reembolso."
-        
+                errors["ticket"] = "Han pasado más de 30 días desde el evento. No es posible solicitar reembolso."                
+        # Validar que el usuario no pueda ingresar una solicitud de reembolso si ya tiene otra activa. #
+        if RefundRequest.objects.filter(user=user, status='pendiente').exclude(pk=getattr(existing_instance, 'pk', None)).exists():
+            errors["general"] = "Ya tenés una solicitud de reembolso pendiente."
+
         return errors
     
     @classmethod
     def new(cls, user, status, approval_date, ticket, reason):
-        errors = cls.validate(reason, ticket)
+        errors = cls.validate(user, reason, ticket)
 
         if errors:
             return None, errors
@@ -437,7 +440,7 @@ class RefundRequest(models.Model):
         return refund, None
     
     def update(self, status=None, approval_date=None, reason=None):
-        errors = self.validate(reason or self.reason, self.ticket, existing_instance=self)
+        errors = self.validate(self.user, reason or self.reason, self.ticket, existing_instance=self)
 
         if errors:
             return False, errors
