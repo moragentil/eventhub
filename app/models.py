@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
@@ -9,6 +9,8 @@ import datetime
 
 class User(AbstractUser):
     is_organizer = models.BooleanField(default=False)
+
+    objects = UserManager() 
 
     @classmethod
     def validate_new_user(cls, email, username, password, password_confirm):
@@ -120,9 +122,9 @@ class Category(models.Model):
     @classmethod
     def validate(cls, name, description):
         errors = {}
-        if not name:
+        if not name or name.strip() == "":
             errors["name"] = "El nombre es requerido."
-        if not description:
+        if not description or description.strip() == "":
             errors["description"] = "La descripción es requerida."
         return errors
 
@@ -283,7 +285,7 @@ class Ticket(models.Model):
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
-    used = models.BooleanField(default=False) 
+    used = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
@@ -299,7 +301,6 @@ class Ticket(models.Model):
         elif quantity <= 0:
             errors["quantity"] = "La cantidad debe ser un número mayor que cero."
 
-
         if type is None:
             errors["type"] = "Debe seleccionar un tipo de Ticket."
         elif type not in TicketType.values:
@@ -307,7 +308,6 @@ class Ticket(models.Model):
 
         if event is None:
             errors["event"] = "Debe seleccionar un Evento."
-
 
         return errors
 
@@ -336,12 +336,10 @@ class Ticket(models.Model):
 
         return ticket, {}
 
-
     @classmethod
     def update(cls, ticket_id, quantity=None, type=None, used=None):
         try:
             ticket = cls.objects.get(id=ticket_id)
-            
             errors = {}
 
             if quantity is not None:
@@ -351,7 +349,6 @@ class Ticket(models.Model):
                     errors["quantity"] = "La cantidad debe ser un número mayor a cero."
                 else:
                     ticket.quantity = quantity
-            
 
             if type is not None:
                 if type not in TicketType.values:
@@ -359,33 +356,31 @@ class Ticket(models.Model):
                 else:
                     ticket.type = type
 
-
             if used is not None:
                 if isinstance(used, str):
                     used = used.lower() == "true"
                 elif not isinstance(used, bool):
-                    used = False  
+                    used = False
                 ticket.used = used
 
             if errors:
-                return False, errors
-            
+                return None, errors
+
             ticket.save()
-            return True, ticket
+            return ticket, None
 
         except cls.DoesNotExist:
-            return False, {"ticket": "Ticket no encontrado."}
-        
-    
-    @classmethod 
+            return None, {"ticket": "Ticket no encontrado."}
+
+    @classmethod
     def delete_ticket(cls, ticket_id):
         try:
             ticket = cls.objects.get(id=ticket_id)
             ticket.delete()
             return True, ticket
-        
         except cls.DoesNotExist:
             return False, {"ticket": "Ticket no encontrado."}
+
 
 
 class RefundRequest(models.Model):
@@ -517,7 +512,7 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
-           
+        
 
 class Rating(models.Model):
     title = models.CharField(max_length=200)
@@ -608,20 +603,33 @@ class Notification(models.Model):
         return f"Notification for {self.title} - {self.priority}"
     
     @classmethod
-    def validate(cls, title, message):
+    def validate(cls, title, message, users=None, priority=None):
         errors = {}
 
-        if title == "":
-            errors["title"] = "Por favor ingrese un titulo"
+        if not title or title.strip() == "":
+            errors["title"] = "Por favor ingrese un título"
+        elif len(title.strip()) > 50:
+            errors["title"] = "El título no puede tener más de 50 caracteres"
 
-        if message == "":
+        if not message or message.strip() == "":
             errors["message"] = "Por favor ingrese un mensaje"
+        elif len(message.strip()) > 500:
+            errors["message"] = "El mensaje no puede tener más de 500 caracteres"
+
+        if users is not None:
+            if not users.exists():
+                errors["recipient_type"] = "Debe seleccionar al menos un destinatario válido"
+
+        if priority is not None:
+            valid_priorities = [choice[0] for choice in cls.PRIORITY_CHOICES]
+            if priority not in valid_priorities:
+                errors["priority"] = "La prioridad seleccionada no es válida"
 
         return errors
 
     @classmethod
-    def new(cls, users, title, message, priority="LOW"):
-        errors = Notification.validate(title, message)
+    def new(cls, users, title, message, priority="Low"):
+        errors = cls.validate(title, message, users, priority)
 
         if errors:
             return False, errors
@@ -632,26 +640,38 @@ class Notification(models.Model):
             priority=priority,
             is_read=False,
         )
-        
         notification.user.set(users)
 
         return True, notification
     
     @classmethod
-    def update(cls, notification_id, title=None, message=None, priority=None):
+    def update(cls, notification_id, title=None, message=None, priority=None, users=None):
         try:
             notification = cls.objects.get(id=notification_id)
         except cls.DoesNotExist:
             return False, {"error": "Notificación no encontrada"}
 
-        if title:
-            notification.title = title
-        if message:
-            notification.message = message
-        if priority:
-            notification.priority = priority
+        errors = cls.validate(
+            title if title is not None else notification.title,
+            message if message is not None else notification.message,
+            users if users is not None else notification.user.all(),
+            priority if priority is not None else notification.priority,
+        )
 
+        if errors:
+            return False, errors
+
+        if title is not None:
+            notification.title = title
+        if message is not None:
+            notification.message = message
+        if priority is not None:
+            notification.priority = priority
         notification.save()
+
+        if users is not None:
+            notification.user.set(users)
+
         return True, notification
     
     @classmethod

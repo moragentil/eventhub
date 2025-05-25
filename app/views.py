@@ -276,7 +276,6 @@ def ticket_delete(request, ticket_id):
     return redirect('event_list')
 
 
-
 @login_required
 @organizer_required
 def organizer_ticket_list(request):
@@ -292,7 +291,7 @@ def ticket_detail(request, ticket_id):
         total_amount = ticket.quantity * ticket.event.price_vip
     else:
         total_amount = ticket.quantity * ticket.event.price_general
-    
+
     return render(request, 'app/ticket/ticket_detail.html', {
         'ticket': ticket,
         'total_amount': total_amount,
@@ -680,7 +679,7 @@ def notification_form(request, id=None):
 
     if not user.is_organizer:
         return redirect("notifications")
-    
+
     notification_instance = None
     if id:
         notification_instance = get_object_or_404(Notification, pk=id)
@@ -696,15 +695,11 @@ def notification_form(request, id=None):
         specific_user_id = request.POST.get("specific_user")
 
         if not title:
-            errors["title"] = "Por favor ingrese un titulo"
-        elif len(title) > 50: 
-            errors["title"] = "El titulo no puede tener mas de 50 caracteres"
-        
+            errors["title"] = "El título es obligatorio"
+    
         if not message_content:
-            errors["message"] = "Por favor ingrese un mensaje"
-        elif len(message_content) > 500: 
-            errors["message"] = "El mensaje no puede tener mas de 500 caracteres"
-        
+            errors["message"] = "El mensaje es obligatorio"
+
         target_users_queryset = None
         if recipient_type == "all":
             target_users_queryset = User.objects.filter(is_organizer=False)
@@ -717,10 +712,8 @@ def notification_form(request, id=None):
                 try:
                     selected_user = User.objects.get(pk=int(specific_user_id), is_organizer=False)
                     target_users_queryset = User.objects.filter(pk=selected_user.pk)
-                except (User.DoesNotExist):
+                except (User.DoesNotExist, ValueError, TypeError):
                     errors["recipient_type"] = "El usuario seleccionado no existe o no es válido"
-                except (ValueError, TypeError):
-                    errors["recipient_type"] = "El ID de usuario seleccionado no es válido"
         else:
             errors["recipient_type"] = "Por favor seleccione un tipo de destinatario válido"
 
@@ -732,32 +725,66 @@ def notification_form(request, id=None):
                 else:
                     return redirect("notifications")
             else:
-                if notification_instance:
-                    notification_instance.title = title
-                    notification_instance.message = message_content
-                    notification_instance.priority = priority
-                    notification_instance.save() 
-                    if target_users_queryset is not None:
-                        notification_instance.user.set(target_users_queryset)
-                return redirect("notifications")
+                success, result = Notification.update(
+                    notification_id=id,
+                    title=title,
+                    message=message_content,
+                    priority=priority,
+                    users=target_users_queryset
+                )
+                if not success:
+                    errors = result
+                else:
+                    return redirect("notifications")
 
-        context = {
-            "notification": notification_instance if id else request.POST, 
-            "users": users_for_dropdown,
-            "priorities": Notification.PRIORITY_CHOICES,
-            "user_is_organizer": request.user.is_organizer,
-            "errors": errors,
-            "selected_priority": priority,
-            "selected_recipient_type": recipient_type,
-            "selected_specific_user_id": specific_user_id,
-        }
-        return render(request, "app/notification/notification_form.html", context)
+        if errors:
+            context = {
+                "notification": {
+                    'title': title,
+                    'message': message_content,
+                },
+                "users": users_for_dropdown,
+                "priorities": Notification.PRIORITY_CHOICES,
+                "user_is_organizer": user.is_organizer,
+                "errors": errors,
+                "selected_recipient_type": recipient_type,
+                "selected_specific_user_id": specific_user_id,
+                "selected_priority": priority,
+            }
+            return render(request, "app/notification/notification_form.html", context)
+        
+    if id:
+        all_users_count = User.objects.filter(is_organizer=False).count()
+        notification_users_count = notification_instance.user.count()
+        
+        selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
+        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
+        selected_priority = notification_instance.priority
+    else:
+        selected_recipient_type = "all"
+        selected_specific_user_id = None
+        selected_priority = "low"
+
+    if id:
+        all_users_count = User.objects.filter(is_organizer=False).count()
+        notification_users_count = notification_instance.user.count()
+        
+        selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
+        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
+        selected_priority = notification_instance.priority
+    else:
+        selected_recipient_type = "all"
+        selected_specific_user_id = None
+        selected_priority = "low"
 
     context = {
-        "notification": notification_instance if id else {}, 
+        "notification": notification_instance if id else {},
         "users": users_for_dropdown,
         "priorities": Notification.PRIORITY_CHOICES,
-        "user_is_organizer": request.user.is_organizer,
+        "user_is_organizer": user.is_organizer,
+        "selected_recipient_type": selected_recipient_type,
+        "selected_specific_user_id": selected_specific_user_id,
+        "selected_priority": selected_priority,
     }
     return render(request, "app/notification/notification_form.html", context)
 
@@ -775,10 +802,9 @@ def mark_all_notifications_as_read(request):
         notification.is_read = True
         notification.save()
     return redirect("notifications")
+
 @login_required
 @organizer_required
-
-
 def category_list(request):
     categories = Category.objects.all()
     return render(
@@ -794,22 +820,16 @@ def category_form(request, id=None):
     category = get_object_or_404(Category, pk=id) if id else None
 
     if request.method == "POST":
-        name = request.POST.get("name")
-        description = request.POST.get("description")
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
         is_active = request.POST.get("is_active") == "on"
 
-        errors = {}
-
-        if not name:
-            errors["name"] = "El nombre es requerido."
-        if not description:
-            errors["description"] = "La descripción es requerida."
+        errors = Category.validate(name, description)
 
         if errors:
-            for field, error in errors.items():
-                messages.error(request, f"{field}: {error}")
             return render(request, "app/category/category_form.html", {
                 "category": category,
+                "errors": errors,
             })
 
         if category is None:
@@ -866,10 +886,22 @@ def comments_list(request):
 @login_required
 def comment_create(request, event_id):
     event = get_object_or_404(Event, id=event_id)
-    title = request.POST.get("title")
-    text = request.POST.get("text")
-    if title and text:
-        Comment.objects.create(event=event, user=request.user, title=title, text=text)
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
+
+        errors = Comment.validate(title, text, event)
+
+        if errors:
+            return render(request, "app/event/event_detail.html",{
+                "event": event,
+                "comments": Comment.objects.filter(event=event),
+                "errors": errors,
+                "data": request.POST
+            })
+
+    Comment.objects.create(event=event, user=request.user, title=title, text=text)
     return redirect("event_detail", id=event_id)
 
 @login_required
@@ -880,10 +912,49 @@ def comment_detail(request, comment_id):
 @login_required
 def comment_delete(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
+    event_id = comment.event.id
 
-    if comment.user == request.user or request.user.is_organizer:
-        if request.method == "POST":
-            comment.delete()
+    if request.user.is_organizer:
+        if comment.event.organizer != request.user:
+            messages.error(request, "No tienes permiso para eliminar comentarios de eventos que no organizaste.")
             return redirect("comments_list")
 
-    return redirect("comments_list")
+    if comment.user == request.user or (request.user.is_organizer and comment.event.organizer == request.user):
+        if request.method == "POST":
+            comment.delete()
+            if request.user.is_organizer:
+                messages.success(request, "Comentario eliminado correctamente.")
+                return redirect("comments_list")
+            else:
+                messages.success(request, "Comentario eliminado correctamente.")
+                return redirect("event_detail", id=event_id)
+
+    if request.user.is_organizer:
+        return redirect("comments_list")
+    else:
+        messages.error(request, "No tienes permiso para eliminar este comentario.")
+        return redirect("event_detail", id=event_id)
+
+@login_required
+def comment_edit(request, comment_id):
+    comment = get_object_or_404(Comment, id=comment_id)
+    if comment.user != request.user:
+        messages.error(request, "No tienes permiso para editar este comentario.")
+        return redirect("event_detail", id=comment.event.id)
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
+
+        errors = Comment.validate(title, text, comment.event)
+        if errors:
+            messages.error(request, "Por favor corrige los errores del formulario.")
+            return redirect("event_detail", id=comment.event.id)
+
+        comment.title = title
+        comment.text = text
+        comment.save()
+        messages.success(request, "Comentario actualizado correctamente.")
+        return redirect("event_detail", id=comment.event.id)
+
+    return redirect("event_detail", id=comment.event.id)

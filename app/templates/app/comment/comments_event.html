@@ -6,19 +6,67 @@
             <h5 class="card-title border-bottom pb-2">Comentarios ({{ comments|length }})</h5>
             <div class="list-group ">
                 {% for comment in comments %}
-                    <div class="list-group-item border-0 border-bottom rounded-bottom-0">
-                        <div class="d-flex  align-items-center mb-1">
-                            <img src="{% static 'images/default_profile_picture.png' %}" alt="User" class="rounded-circle me-2" width="35" >
-                            <div class="d-flex flex-column w-100 ">
+                    <div class="list-group-item border-0 border-bottom rounded-bottom-0 position-relative" id="comment-{{ comment.id }}">
+                        <div class="d-flex align-items-center mb-1">
+                            <img src="{% static 'images/default_profile_picture.png' %}" alt="User" class="rounded-circle me-2" width="35">
+                            <div class="d-flex flex-column w-100">
                                 <h6 class="mb-1">{{ comment.user.username }}</h6>
                                 <small class="text-muted">{{ comment.created_at|date:"d M Y, H:i" }}</small>
                             </div>
+                            {% if comment.user == user %}
+                            <div class="dropdown ms-auto">
+                                <button class="btn btn-link text-muted p-0" type="button" id="dropdownMenu{{ comment.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenu{{ comment.id }}">
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="event.preventDefault(); toggleEditForm('{{ comment.id }}');">Editar</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteModal{{ comment.id }}">Eliminar</a>
+                                    </li>
+                                </ul>
+                            </div>
+                            {% endif %}
                         </div>
-                        <h5 class="mb-1">{{ comment.title }}</h5>
-                        <p class="mb-1">{{ comment.text }}</p>
+                        <div id="comment-view-{{ comment.id }}">
+                            <h5 class="mb-1">{{ comment.title }}</h5>
+                            <p class="mb-1">{{ comment.text }}</p>
+                        </div>
+                        <form id="comment-edit-form-{{ comment.id }}" method="POST" action="{% url 'comment_edit' comment.id %}" class="d-none">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <input type="text" name="title" class="form-control mb-1" value="{{ comment.title }}" required>
+                            </div>
+                            <div class="mb-2">
+                                <textarea name="text" class="form-control mb-1" rows="2" required>{{ comment.text }}</textarea>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-success">Guardar</button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEditForm('{{ comment.id }}')">Cancelar</button>
+                        </form>
+                        <div class="modal fade" id="deleteModal{{ comment.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ comment.id }}" aria-hidden="true">
+                          <div class="modal-dialog">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title" id="deleteModalLabel{{ comment.id }}">Confirmar eliminación</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                              </div>
+                              <div class="modal-body">
+                                ¿Estás seguro de que deseas eliminar este comentario?
+                              </div>
+                              <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <form method="POST" action="{% url 'comment_delete' comment.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                                </form>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                     </div>
                 {% empty %}
-                    <p >No hay comentarios para este evento.</p>
+                    <p>No hay comentarios para este evento.</p>
                 {% endfor %}
             </div>
             <div class="mt-2 ">
@@ -27,3 +75,17 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleEditForm(commentId) {
+    const viewDiv = document.getElementById(`comment-view-${commentId}`);
+    const form = document.getElementById(`comment-edit-form-${commentId}`);
+    if (form.classList.contains('d-none')) {
+        form.classList.remove('d-none');
+        viewDiv.classList.add('d-none');
+    } else {
+        form.classList.add('d-none');
+        viewDiv.classList.remove('d-none');
+    }
+}
+</script>

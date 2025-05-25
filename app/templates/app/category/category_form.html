@@ -16,27 +16,34 @@
             <div class="card">
                 <div class="card-body">
                     <form method="POST">
+                        
                         {% csrf_token %}
 
                         <div class="mb-3">
                             <label for="name" class="form-label">Nombre</label>
                             <input
                                 type="text"
-                                class="form-control"
+                                class="form-control {% if errors.name %}is-invalid{% endif %}"
                                 id="name"
                                 name="name"
                                 value="{{ category.name|default:'' }}"
                                 required>
+                            {% if errors.name %}
+                                <div class="invalid-feedback">{{ errors.name }}</div>
+                            {% endif %}
                         </div>
 
                         <div class="mb-3">
                             <label for="description" class="form-label">Descripción</label>
                             <textarea
-                                class="form-control"
+                                class="form-control {% if errors.description %}is-invalid{% endif %}"
                                 id="description"
                                 name="description"
                                 rows="4"
                                 required>{{ category.description|default:'' }}</textarea>
+                            {% if errors.description %}
+                                <div class="invalid-feedback">{{ errors.description }}</div>
+                            {% endif %}
                         </div>
 
                         <div class="form-check mb-3">
