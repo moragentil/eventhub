@@ -229,6 +229,9 @@ class Event(models.Model):
         return True, {}
 
     def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+        old_scheduled_at = self.scheduled_at
+        old_venue = self.venue
+
         errors = self.validate(title or self.title, description or self.description,
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
@@ -256,7 +259,28 @@ class Event(models.Model):
             self.category = category
 
         self.save()
-        return True, None
+
+        fecha_cambiada = scheduled_at is not None and self.scheduled_at != old_scheduled_at
+        lugar_cambiado = venue is not None and self.venue != old_venue
+
+        if fecha_cambiada or lugar_cambiado:
+            users = User.objects.filter(tickets__event=self).distinct()
+            if users.exists():
+                changes = []
+                if fecha_cambiada:
+                    changes.append(f"Fecha antigua: {old_scheduled_at.strftime('%d/%m/%Y %H:%M')} \n Fecha actualizada: {self.scheduled_at.strftime('%d/%m/%Y %H:%M')}")
+                if lugar_cambiado:
+                    changes.append(f"Lugar antiguo: {old_venue.name if old_venue else 'Sin lugar'} \n Nuevo lugar: {self.venue.name if self.venue else 'Sin lugar'}")
+                detail = "\n".join(changes)
+                message = ( f"El evento {self.title} ha sido modificado.\n" f"{detail}\n" f"Fecha de modificación: {timezone.now().strftime('%d/%m/%Y %H:%M')}" )
+                Notification.new(
+                    users=users,
+                    title=f"{self.title}",
+                    message=message,
+                    priority="High"
+                )
+                
+        return True, {}
 
 
 def code_generator(length=20):
