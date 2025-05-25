@@ -120,9 +120,9 @@ class Category(models.Model):
     @classmethod
     def validate(cls, name, description):
         errors = {}
-        if not name:
+        if not name or name.strip() == "":
             errors["name"] = "El nombre es requerido."
-        if not description:
+        if not description or description.strip() == "":
             errors["description"] = "La descripción es requerida."
         return errors
 
@@ -509,7 +509,7 @@ class Comment(models.Model):
         
         except cls.DoesNotExist:
             return False, {"comment": "Comentario no encontrado."}
-           
+        
 
 class Rating(models.Model):
     title = models.CharField(max_length=200)
