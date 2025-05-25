@@ -53,4 +53,6 @@ urlpatterns = [
     path("categories/<int:id>/delete/", views.category_delete, name="category_delete"),
     path("categories/<int:id>/", views.category_detail, name="category_detail"),
     path("comments/<int:comment_id>/edit/", views.comment_edit, name="comment_edit"),
+    path("tickets/<int:ticket_id>/survey/", views.submit_survey, name="submit_survey"),
+    path("surveys/", views.survey_dashboard, name="survey_dashboard"),
 ]

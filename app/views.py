@@ -7,10 +7,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
 from .models import Event, User, Ticket, TicketType,Rating
-from django.db.models import Count
+from django.db.models import Count, Avg
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey
 
 
 def register(request):
@@ -234,7 +234,18 @@ def ticket_create(request, event_id):
         )
 
         if success:
-            return redirect("user_ticket_list")
+            return render(
+                request,
+                "app/ticket/ticket_form.html",
+                {
+                    "event": event,
+                    "data": {},
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                    "mostrar_encuesta": True,
+                    "ticket_id": result.id,
+                },
+            )
         else:
             return render(
                 request,
@@ -258,6 +269,7 @@ def ticket_create(request, event_id):
             "total_amount": total_amount,
         },
     )
+
 
 
 @login_required
@@ -950,3 +962,53 @@ def comment_edit(request, comment_id):
         return redirect("event_detail", id=comment.event.id)
 
     return redirect("event_detail", id=comment.event.id)
+
+@login_required
+def submit_survey(request, ticket_id):
+    ticket = get_object_or_404(Ticket, id=ticket_id, user=request.user)
+
+    if hasattr(ticket, 'survey'):
+        return redirect('home')
+
+    if request.method == "POST":
+        comfort = request.POST.get("comfort_rating")
+        clarity = request.POST.get("clarity_rating")
+        satisfaction = request.POST.get("satisfaction_rating")
+        comment = request.POST.get("comment", "")
+
+        survey, errors = SatisfactionSurvey.new(
+            ticket=ticket,
+            comfort_rating=comfort,
+            clarity_rating=clarity,
+            satisfaction_rating=satisfaction,
+            comment=comment
+        )
+
+        if errors:
+            return render(request, "app/satisfaction_survey/satisfaction_survey_form.html", {
+                "errors": errors,
+                "ticket": ticket,
+                "form_data": request.POST
+            })
+
+        return redirect("events") 
+
+    return render(request, "app/satisfaction_survey/satisfaction_survey_form.html", {"ticket": ticket})
+
+@login_required
+def survey_dashboard(request):
+    if not request.user.is_organizer:
+        return redirect('home')
+
+    surveys = SatisfactionSurvey.objects.select_related("ticket__event").all()
+
+    promedio_comfort = surveys.aggregate(prom=Avg("comfort_rating"))["prom"]
+    promedio_clarity = surveys.aggregate(prom=Avg("clarity_rating"))["prom"]
+    promedio_satisfaction = surveys.aggregate(prom=Avg("satisfaction_rating"))["prom"]
+
+    return render(request, "app/satisfaction_survey/survey_dashboard.html", {
+        "surveys": surveys,
+        "promedio_comfort": promedio_comfort,
+        "promedio_clarity": promedio_clarity,
+        "promedio_satisfaction": promedio_satisfaction,
+    })

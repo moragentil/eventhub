@@ -679,3 +679,57 @@ class Notification(models.Model):
             return True, None
         except cls.DoesNotExist:
             return False, {"error": "Notificación no encontrada"}
+
+
+class SatisfactionSurvey(models.Model):
+    RATING_CHOICES = [(str(i), str(i)) for i in range(1, 6)]
+
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name="survey")
+    comfort_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    clarity_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    satisfaction_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Survey for {self.ticket.ticket_code} by {self.ticket.user.username}"
+
+    @classmethod
+    def validate(cls, ticket, comfort_rating, clarity_rating, satisfaction_rating):
+        errors = {}
+
+        if ticket is None:
+            errors["ticket"] = "Debe seleccionar una compra válida."
+
+        if SatisfactionSurvey.objects.filter(ticket=ticket).exists():
+            errors["duplicate"] = "Ya existe una encuesta para esta compra."
+
+        for field, value in {
+            "comfort_rating": comfort_rating,
+            "clarity_rating": clarity_rating,
+            "satisfaction_rating": satisfaction_rating,
+        }.items():
+            try:
+                val = int(value)
+                if not (1 <= val <= 5):
+                    errors[field] = "La puntuación debe estar entre 1 y 5."
+            except ValueError:
+                errors[field] = "La puntuación debe ser un número entero entre 1 y 5."
+
+        return errors
+
+    @classmethod
+    def new(cls, ticket, comfort_rating, clarity_rating, satisfaction_rating, comment=""):
+        errors = cls.validate(ticket, comfort_rating, clarity_rating, satisfaction_rating)
+        if errors:
+            return None, errors
+
+        survey = cls.objects.create(
+            ticket=ticket,
+            comfort_rating=comfort_rating,
+            clarity_rating=clarity_rating,
+            satisfaction_rating=satisfaction_rating,
+            comment=comment
+        )
+        return survey, None
+
