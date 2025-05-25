@@ -671,7 +671,7 @@ def notification_form(request, id=None):
 
     if not user.is_organizer:
         return redirect("notifications")
-    
+
     notification_instance = None
     if id:
         notification_instance = get_object_or_404(Notification, pk=id)
@@ -687,15 +687,11 @@ def notification_form(request, id=None):
         specific_user_id = request.POST.get("specific_user")
 
         if not title:
-            errors["title"] = "Por favor ingrese un titulo"
-        elif len(title) > 50: 
-            errors["title"] = "El titulo no puede tener mas de 50 caracteres"
-        
+            errors["title"] = "El título es obligatorio"
+    
         if not message_content:
-            errors["message"] = "Por favor ingrese un mensaje"
-        elif len(message_content) > 500: 
-            errors["message"] = "El mensaje no puede tener mas de 500 caracteres"
-        
+            errors["message"] = "El mensaje es obligatorio"
+
         target_users_queryset = None
         if recipient_type == "all":
             target_users_queryset = User.objects.filter(is_organizer=False)
@@ -708,10 +704,8 @@ def notification_form(request, id=None):
                 try:
                     selected_user = User.objects.get(pk=int(specific_user_id), is_organizer=False)
                     target_users_queryset = User.objects.filter(pk=selected_user.pk)
-                except (User.DoesNotExist):
+                except (User.DoesNotExist, ValueError, TypeError):
                     errors["recipient_type"] = "El usuario seleccionado no existe o no es válido"
-                except (ValueError, TypeError):
-                    errors["recipient_type"] = "El ID de usuario seleccionado no es válido"
         else:
             errors["recipient_type"] = "Por favor seleccione un tipo de destinatario válido"
 
@@ -723,6 +717,7 @@ def notification_form(request, id=None):
                 else:
                     return redirect("notifications")
             else:
+<<<<<<< HEAD
                 if notification_instance:
                     notification_instance.title = title
                     notification_instance.message = message_content
@@ -731,24 +726,58 @@ def notification_form(request, id=None):
                     if target_users_queryset is not None:
                         notification_instance.user.set(target_users_queryset)
                 return redirect("notifications")
+=======
+                success, result = Notification.update(
+                    notification_id=id,
+                    title=title,
+                    message=message_content,
+                    priority=priority,
+                    users=target_users_queryset
+                )
+                if not success:
+                    errors = result
+                else:
+                    return redirect("notifications")
+>>>>>>> feature/crud-notification
 
-        context = {
-            "notification": notification_instance if id else request.POST, 
-            "users": users_for_dropdown,
-            "priorities": Notification.PRIORITY_CHOICES,
-            "user_is_organizer": request.user.is_organizer,
-            "errors": errors,
-            "selected_priority": priority,
-            "selected_recipient_type": recipient_type,
-            "selected_specific_user_id": specific_user_id,
-        }
-        return render(request, "app/notification/notification_form.html", context)
+        # Mover este bloque fuera del if anterior - se ejecuta si HAY errores
+        if errors:
+            context = {
+                "notification": {
+                    'title': title,
+                    'message': message_content,
+                },
+                "users": users_for_dropdown,
+                "priorities": Notification.PRIORITY_CHOICES,
+                "user_is_organizer": user.is_organizer,
+                "errors": errors,
+                "selected_recipient_type": recipient_type,
+                "selected_specific_user_id": specific_user_id,
+                "selected_priority": priority,
+            }
+            return render(request, "app/notification/notification_form.html", context)
+
+    # GET request o formulario inicial
+    if id:
+        all_users_count = User.objects.filter(is_organizer=False).count()
+        notification_users_count = notification_instance.user.count()
+        
+        selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
+        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
+        selected_priority = notification_instance.priority
+    else:
+        selected_recipient_type = "all"
+        selected_specific_user_id = None
+        selected_priority = "low"
 
     context = {
-        "notification": notification_instance if id else {}, 
+        "notification": notification_instance if id else {},
         "users": users_for_dropdown,
         "priorities": Notification.PRIORITY_CHOICES,
-        "user_is_organizer": request.user.is_organizer,
+        "user_is_organizer": user.is_organizer,
+        "selected_recipient_type": selected_recipient_type,
+        "selected_specific_user_id": selected_specific_user_id,
+        "selected_priority": selected_priority,
     }
     return render(request, "app/notification/notification_form.html", context)
 
