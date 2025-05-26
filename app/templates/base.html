@@ -56,7 +56,11 @@
 
                             {% endif %}
 
-                           
+                           {% if user.is_organizer %}
+                                <li class="nav-item">
+                                    {% navbar_link 'survey_dashboard' 'Encuestas' %}
+                                </li>
+                            {% endif %}
 
                             {% if not user.is_organizer %}
                                 <li class="nav-item">
