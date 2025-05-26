@@ -232,7 +232,7 @@ def ticket_create(request, event_id):
             user=request.user,
             event=event,
         )
-        if success:
+        if ticket:
             return render(
                 request,
                 "app/ticket/ticket_form.html",
@@ -242,7 +242,7 @@ def ticket_create(request, event_id):
                     "unit_price": unit_price,
                     "total_amount": total_amount,
                     "mostrar_encuesta": True,
-                    "ticket_id": result.id,
+                    "ticket_id": ticket.pk,
                 },
             )
         else:
