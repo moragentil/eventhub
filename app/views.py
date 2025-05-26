@@ -128,6 +128,12 @@ def event_form(request, id=None):
     event = None
     errors = {}
 
+    if id:
+        event = get_object_or_404(Event, pk=id)
+        if event.state == "finalizado":
+            messages.error(request, "No se pueden editar eventos finalizados.")
+            return redirect("events")
+
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
         description = request.POST.get("description", "").strip()
@@ -137,6 +143,16 @@ def event_form(request, id=None):
         price_vip = request.POST.get("price_vip")
         venue_id = request.POST.get("venue")
         category_id = request.POST.get("category")
+        state = request.POST.get("state", "activo")
+        original_date = request.POST.get("original_date")
+        original_time = request.POST.get("original_time")
+
+        fecha_cambiada = (
+            original_date != date or original_time != time
+        )
+
+        if id and fecha_cambiada and state not in ["cancelado", "reprogramado"]:
+            state = "reprogramado"
 
         try:
             scheduled_at = timezone.make_aware(
@@ -163,10 +179,11 @@ def event_form(request, id=None):
             success, validation_errors = Event.new(
                 title, description, scheduled_at, user,
                 price_general, price_vip, venue,
-                category=category
+                category=category, state=state
             )
         else:
             event = get_object_or_404(Event, pk=id)
+            previous_state = event.state
             event.title = title
             event.description = description
             if scheduled_at is not None:
@@ -174,12 +191,36 @@ def event_form(request, id=None):
             event.organizer = request.user
             event.price_general = price_general
             event.price_vip = price_vip
-            event.save()  
+            event.state = state
+            event.save()
+
+            if state in ["cancelado", "reprogramado"] and previous_state != state:
+                users = User.objects.filter(tickets__event=event).distinct()
+                if users.exists():
+                    if state == "cancelado":
+                        description = f"El evento {event.title} ha sido cancelado."
+                    elif state == "reprogramado":
+                        description = (
+                            f"El evento {event.title} ha sido reprogramado.\n"
+                            f"Nueva fecha: {event.scheduled_at.strftime('%Y-%m-%d %H:%M')}."
+                        )
+                    Notification.new(
+                        users,
+                        title = f"El evento {event.title} ha sido {state}.",
+                        message=description,
+                        priority="High"
+                    )
 
         return redirect("events")
 
     elif id:
         event = get_object_or_404(Event, pk=id)
+        state = event.state
+        if event.state == "finalizado" or event.state == "cancelado":
+            messages.error(request, f"No se pueden editar eventos {event.state}s.")
+            return redirect("events")
+    else:
+        state = "activo"
         
     categories = Category.objects.filter(is_active=True)
 
@@ -189,6 +230,7 @@ def event_form(request, id=None):
         {
             "event": event,
             "venues": venues,
+            "state": state,
             "errors": errors,
             "editing": id is not None,
             "user_is_organizer": user.is_organizer,
@@ -199,6 +241,10 @@ def event_form(request, id=None):
 @login_required
 def ticket_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
+
+    if event.state in ["agotado", "finalizado", "cancelado"]:
+        messages.error(request, f"No se pueden comprar entradas para este evento porque esta {event.state}.")
+        return redirect("event_detail", id=event.pk)
 
     if event.scheduled_at < timezone.now():
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
