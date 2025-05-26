@@ -326,6 +326,10 @@ class Ticket(models.Model):
     def new(cls, quantity, type, user, event):
         errors = cls.validate(quantity, type, event)
 
+        if event.state in ["cancelado", "finalizado", "agotado"]:
+            errors["state"] = "No se pueden comprar entradas para este evento."
+            return None, errors
+
         capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
         sold = sum(ticket.quantity for ticket in event.tickets.all())
         if sold + quantity > capacity:
