@@ -167,15 +167,27 @@ def event_form(request, id=None):
             )
         else:
             event = get_object_or_404(Event, pk=id)
-            event.title = title
-            event.description = description
-            if scheduled_at is not None:
-                event.scheduled_at = scheduled_at
-            event.organizer = request.user
-            event.price_general = price_general
-            event.price_vip = price_vip
-            event.save()  
-
+            success, validation_errors = event.update(
+                title, description, scheduled_at, user,
+                price_general, price_vip, venue,
+                category
+            )
+        
+        if not success:
+            errors = validation_errors
+            categories = Category.objects.filter(is_active=True)
+            return render(
+                request,
+                "app/event/event_form.html",
+                {
+                    "event": event,
+                    "venues": venues,
+                    "errors": errors,
+                    "editing": id is not None,
+                    "user_is_organizer": user.is_organizer,
+                    "categories": categories
+                },
+            )
         return redirect("events")
 
     elif id:
