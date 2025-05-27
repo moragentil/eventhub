@@ -781,4 +781,11 @@ class SatisfactionSurvey(models.Model):
             comment=comment
         )
         return survey, None
+    
+class Favorite(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('user', 'event')
 
