@@ -3,6 +3,12 @@
 {% block content %}
 <div class="container">
     <div class="row">
+        {% if errors %}
+            <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
+                Por favor corrige los errores en el formulario de Calificación antes de enviarlo.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endif %}
         <div class="d-flex justify-content-between align-items-center">
             <h1>{{ event.title }}</h1>
             <div class="hstack gap-2">
@@ -176,6 +182,14 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
+
+        document.querySelector("form").addEventListener("submit", (e) => {
+            const ratingValue = parseInt(createInput.value, 10);
+            if (!ratingValue || ratingValue < 1 || ratingValue > 10) {
+                e.preventDefault();
+                alert("Por favor selecciona una calificación válida.");
+            }
+        });
         
         document.querySelectorAll(".toggle-edit").forEach(btn => {
             btn.addEventListener("click", () => {
