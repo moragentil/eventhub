@@ -39,8 +39,73 @@
             </select>
         </div>
 
-        <p><strong>Precio unitario:</strong> $<span id="unit-price">-</span></p>
-        <p><strong>Importe total:</strong> $<span id="total-amount">-</span></p>
+        <!-- Sección de descuento -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Aplicar Descuento</h5>
+                <div class="input-group mb-3">
+                    <input 
+                        type="text" 
+                        id="discount_code" 
+                        name="discount_code" 
+                        class="form-control" 
+                        placeholder="Ingrese código de descuento"
+                        value="{{ data.discount_code|default:'' }}"
+                    >
+                    <button 
+                        type="button" 
+                        class="btn btn-outline-primary" 
+                        id="validate-discount"
+                        onclick="validateDiscount()"
+                    >
+                        Validar
+                    </button>
+                </div>
+                <div id="discount-feedback" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Sección de precios -->
+        <div class="row mb-4">
+            <!-- Precios Originales -->
+            <div class="col-md-6">
+                <div class="card border-dark">
+                    <div class="card-header bg-white text-dark border-bottom border-dark">
+                        <strong>Precios Originales</strong>
+                    </div>
+                    <div class="card-body text-dark">
+                        <p class="mb-2">
+                            <strong>Precio unitario:</strong> 
+                            $<span id="original-unit-price">0.00</span>
+                        </p>
+                        <p class="mb-0">
+                            <strong>Total:</strong> 
+                            $<span id="original-total">0.00</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Precios con Descuento -->
+            <div class="col-md-6" id="discounted-col" style="display:none;">
+                <div class="card border-dark">
+                    <div class="card-header bg-white text-dark border-bottom border-dark">
+                        <strong>Precios con Descuento</strong>
+                    </div>
+                    <div class="card-body text-dark">
+                        <p class="mb-2">
+                            <strong>Precio unitario:</strong> 
+                            $<span id="discounted-unit-price">0.00</span>
+                        </p>
+                        <p class="mb-0">
+                            <strong>Total:</strong> 
+                            $<span id="discounted-total">0.00</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 
         <div class="text-start">
             <button type="submit" class="btn btn-primary">Comprar</button>
@@ -89,22 +154,67 @@
 document.addEventListener("DOMContentLoaded", function () {
     const quantityInput = document.getElementById("quantity");
     const typeSelect = document.getElementById("type");
-    const unitPriceSpan = document.getElementById("unit-price");
-    const totalAmountSpan = document.getElementById("total-amount");
+    const originalUnitPrice = document.getElementById("original-unit-price");
+    const originalTotal = document.getElementById("original-total");
+    const discountedUnitPrice = document.getElementById("discounted-unit-price");
+    const discountedTotal = document.getElementById("discounted-total");
+    const discountedCol = document.getElementById("discounted-col");
+    const feedback = document.getElementById("discount-feedback");
+    let discountPercentage = 0;
+    let discountValid = false;
 
-    function updateAmounts() {
+    function updatePrices() {
         const selectedOption = typeSelect.options[typeSelect.selectedIndex];
-        const unitPrice = parseFloat(selectedOption.getAttribute("data-price")) || 0;
+        const basePrice = parseFloat(selectedOption.getAttribute("data-price")) || 0;
         const quantity = parseInt(quantityInput.value) || 0;
 
-        unitPriceSpan.textContent = unitPrice.toFixed(2);
-        totalAmountSpan.textContent = (unitPrice * quantity).toFixed(2);
+        // Mostrar precios solo si hay selección válida
+        if (basePrice > 0 && quantity > 0) {
+            originalUnitPrice.textContent = basePrice.toFixed(2);
+            originalTotal.textContent = (basePrice * quantity).toFixed(2);
+        } else {
+            originalUnitPrice.textContent = "0.00";
+            originalTotal.textContent = "0.00";
+        }
+
+        // Mostrar columna de descuento solo si es válido
+        if (discountValid && discountPercentage > 0 && basePrice > 0 && quantity > 0) {
+            discountedCol.style.display = "";
+            const discountedPrice = basePrice * (1 - (discountPercentage / 100));
+            discountedUnitPrice.textContent = discountedPrice.toFixed(2);
+            discountedTotal.textContent = (discountedPrice * quantity).toFixed(2);
+        } else {
+            discountedCol.style.display = "none";
+            discountedUnitPrice.textContent = "0.00";
+            discountedTotal.textContent = "0.00";
+        }
     }
 
-    quantityInput.addEventListener("input", updateAmounts);
-    typeSelect.addEventListener("change", updateAmounts);
+    window.validateDiscount = function() {
+        const code = document.getElementById("discount_code").value;
+        const eventId = "{{ event.id }}";
+        fetch(`/validate-discount/?code=${code}&event_id=${eventId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.valid) {
+                    discountPercentage = data.percentage;
+                    discountValid = true;
+                    feedback.textContent = `✔ Descuento del ${data.percentage}% aplicado correctamente.`;
+                    feedback.className = "text-success mt-2";
+                } else {
+                    discountPercentage = 0;
+                    discountValid = false;
+                    feedback.textContent = "✘ Código de descuento inválido o expirado.";
+                    feedback.className = "text-danger mt-2";
+                }
+                updatePrices();
+            });
+    }
 
-    updateAmounts();  
+    quantityInput.addEventListener("input", updatePrices);
+    typeSelect.addEventListener("change", updatePrices);
+
+    updatePrices();
 });
 </script>
 {% endblock %}
