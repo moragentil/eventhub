@@ -184,29 +184,34 @@ def event_form(request, id=None):
                 price_general, price_vip, venue,
                 category=category, state=state
             )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento creado exitosamente!")
         else:
             event = get_object_or_404(Event, pk=id)
             previous_state = event.state
-            event.title = title
-            event.description = description
-            if scheduled_at is not None:
-                event.scheduled_at = scheduled_at
-            event.organizer = request.user
-            event.price_general = price_general
-            event.price_vip = price_vip
-            event.state = state
-            event.save()
-
-            if state in ["cancelado", "reprogramado"] and previous_state != state:
+            success, validation_errors = event.update(
+                title=title,
+                description=description,
+                scheduled_at=scheduled_at,
+                organizer=event.organizer,
+                price_general=price_general,
+                price_vip=price_vip,
+                venue=venue,
+                category=category,
+                state=state
+            )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento actualizado exitosamente!")
+        
+            if state in ["cancelado"] and previous_state != state:
                 users = User.objects.filter(tickets__event=event).distinct()
                 if users.exists():
                     if state == "cancelado":
                         description = f"El evento {event.title} ha sido cancelado."
-                    elif state == "reprogramado":
-                        description = (
-                            f"El evento {event.title} ha sido reprogramado.\n"
-                            f"Nueva fecha: {event.scheduled_at.strftime('%Y-%m-%d %H:%M')}."
-                        )
                     Notification.new(
                         users,
                         title = f"El evento {event.title} ha sido {state}.",

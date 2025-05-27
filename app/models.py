@@ -191,7 +191,7 @@ class Event(models.Model):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at, price_general, price_vip, category):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip, category, state):
         errors = {}
 
         if title == "":
@@ -796,4 +796,3 @@ class SatisfactionSurvey(models.Model):
             comment=comment
         )
         return survey, None
-
