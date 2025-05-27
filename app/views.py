@@ -554,7 +554,7 @@ def rating_create(request, event_id):
         if errors:
             return render(
                 request,
-                "app/rating/rating_form.html",
+                "app/event/event_detail.html",
                 {
                     "errors": errors,
                     "event": event,
