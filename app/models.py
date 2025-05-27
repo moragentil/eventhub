@@ -177,7 +177,7 @@ class Event(models.Model):
     price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
-
+    discount = models.ForeignKey('Discount', on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
 
     def __str__(self):
         return self.title
@@ -211,7 +211,7 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None):
         errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
 
         if len(errors.keys()) > 0:
@@ -225,12 +225,13 @@ class Event(models.Model):
             price_general=price_general,
             price_vip=price_vip,
             venue=venue,
-            category=category
+            category=category,
+            discount=discount
         )
 
         return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None):
         old_scheduled_at = self.scheduled_at
         old_venue = self.venue
 
@@ -259,6 +260,9 @@ class Event(models.Model):
             self.venue = venue
         if category is not None:
             self.category = category
+        if discount is not None:
+            self.discount = discount
+
 
         self.save()
 
@@ -310,6 +314,8 @@ class Ticket(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
     used = models.BooleanField(default=False)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
@@ -763,3 +769,76 @@ class SatisfactionSurvey(models.Model):
         )
         return survey, None
 
+class Discount(models.Model):
+    code = models.CharField(max_length=30, unique=True)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+
+    def __str__(self):
+        return f"Discount {self.code} - Percentage: {self.percentage}%"
+    
+    @classmethod
+    def validate(cls, code, percentage):
+        errors = {}
+
+        if not code or code.strip() == "":
+            errors["code"] = "El código de descuento es requerido."
+        elif len(code.strip()) > 30:
+            errors["code"] = "El código no puede tener más de 30 caracteres."
+        elif cls.objects.filter(code__iexact=code.strip()).exists():
+            errors["code"] = "Ya existe un descuento con este código."
+
+        if percentage is None:
+            errors["percentage"] = "El porcentaje es requerido."
+        else:
+            try:
+                pct = Decimal(percentage)
+                if pct <= 0 or pct > 100:
+                    errors["percentage"] = "El porcentaje debe estar entre 1 y 100."
+            except:
+                errors["percentage"] = "El porcentaje debe ser un número válido."
+
+        return errors
+    
+    @classmethod
+    def new(cls, code, percentage):
+        errors = cls.validate(code, percentage)
+
+        if errors:
+            return False, errors
+
+        discount = cls.objects.create(code=code.strip(), percentage=Decimal(percentage))
+        return True, discount
+    
+    @classmethod
+    def update(cls, discount_id, code=None, percentage=None):
+        try:
+            discount = cls.objects.get(pk=discount_id)
+        except cls.DoesNotExist:
+            return False, {"error": "Descuento no encontrado."}
+
+        if code is None:
+            code = discount.code
+        if percentage is None:
+            percentage = discount.percentage
+
+        errors = cls.validate(code, percentage)
+
+        if code.strip().lower() == discount.code.lower():
+            errors.pop("code", None)
+
+        if errors:
+            return False, errors
+
+        discount.code = code.strip()
+        discount.percentage = Decimal(percentage)
+        discount.save()
+        return True, discount
+
+    @classmethod
+    def delete_discount(cls, discount_id):
+        try:
+            discount = cls.objects.get(pk=discount_id)
+            discount.delete()
+            return True, None
+        except cls.DoesNotExist:
+            return False, {"error": "Descuento no encontrado."}
