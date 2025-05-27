@@ -167,6 +167,13 @@ class Category(models.Model):
 
 
 class Event(models.Model):
+    states = [
+        ("activo", "Activo"),
+        ("cancelado", "Cancelado"),
+        ("reprogramado", "Reprogramado"),
+        ("agotado", "Agotado"),
+        ("finalizado", "Finalizado"),
+    ]
     title = models.CharField(max_length=200)
     description = models.TextField()
     scheduled_at = models.DateTimeField()
@@ -178,12 +185,15 @@ class Event(models.Model):
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
     discount = models.ForeignKey('Discount', on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
+    state = models.CharField(max_length=20, choices=states, default="activo")
+
+
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at, price_general, price_vip, category):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip, category, state):
         errors = {}
 
         if title == "":
@@ -211,7 +221,7 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None):
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None, state="activo"):
         errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
 
         if len(errors.keys()) > 0:
@@ -231,7 +241,8 @@ class Event(models.Model):
 
         return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None):
+
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None, state):
         old_scheduled_at = self.scheduled_at
         old_venue = self.venue
 
@@ -239,7 +250,8 @@ class Event(models.Model):
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
                             price_vip or self.price_vip,
-                            category or self.category)
+                            category or self.category,
+                            state or self.state)
 
         if errors:
             return False, errors
@@ -262,6 +274,8 @@ class Event(models.Model):
             self.category = category
         if discount is not None:
             self.discount = discount
+        if state is not None:
+            self.state = state
 
 
         self.save()
@@ -344,6 +358,10 @@ class Ticket(models.Model):
     @classmethod
     def new(cls, quantity, type, user, event):
         errors = cls.validate(quantity, type, event)
+
+        if event.state in ["cancelado", "finalizado", "agotado"]:
+            errors["state"] = "No se pueden comprar entradas para este evento."
+            return None, errors
 
         capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
         sold = sum(ticket.quantity for ticket in event.tickets.all())
@@ -547,70 +565,89 @@ class Comment(models.Model):
             return False, {"comment": "Comentario no encontrado."}
         
 
+from django.utils import timezone
+
 class Rating(models.Model):
     title = models.CharField(max_length=200)
     text = models.TextField()
     rating = models.IntegerField()
     created_at = models.DateTimeField()
-    user =  models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
-    event =  models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
 
     def __str__(self):
         return f"Rating for {self.event.title} by {self.user.username}"
-    
+
     @classmethod
-    def validate(cls,title,text,rating,event):
+    def validate(cls, title, text, rating, event):
         errors = {}
 
-        if title is None:
-            errors["title"] = "Por favor ingrese un titulo"
-        if text is None:
-            errors["text"] = "Por favor ingrese un titulo"
+        if not title:
+            errors["title"] = "El título es obligatorio."
+        elif len(title) > 200:
+            errors["title"] = "El título no puede exceder los 200 caracteres."
+
+        if not text:
+            errors["text"] = "El comentario es obligatorio."
+        elif len(text.strip()) == 0:
+            errors["text"] = "El comentario no puede estar vacío."
+
         if rating is None:
-            errors["rating"] = "Por favor ingrese un titulo"
+            errors["rating"] = "La calificación es obligatoria."
+        elif not isinstance(rating, int):
+            errors["rating"] = "La calificación debe ser un número entero."
+        elif rating < 1 or rating > 10:
+            errors["rating"] = "La calificación debe estar entre 1 y 5."
+
         if event is None:
-            errors["event"] = "Por favor ingrese un titulo"
+            errors["event"] = "Debe asociar el comentario a un evento."
 
         return errors
-    
+
     @classmethod
-    def new(cls,title,text,rating,created_at,user,event):
-        errors = Rating.validate(title,text,rating,event)
+    def new(cls, title, text, rating, created_at, user, event):
+        errors = cls.validate(title, text, rating, event)
 
         if errors:
-            return False,errors 
-        
-        rating = cls.objects.create(
-            title= title,
-            text= text,
-            rating= rating,
-            created_at= timezone.now(),
-            user= user,
-            event= event
+            return None, errors
+
+        rating_obj = cls.objects.create(
+            title=title,
+            text=text,
+            rating=rating,
+            created_at=created_at or timezone.now(),
+            user=user,
+            event=event
         )
 
-        return True, rating
-    
-    def update(self,title,text,rating):
-        errors = self.validate(title, text, rating, self.event)
+        return rating_obj, None
+
+    def update(self, title=None, text=None, rating=None):
+        updated_title = title or self.title
+        updated_text = text or self.text
+        updated_rating = rating if rating is not None else self.rating
+
+        errors = self.validate(updated_title, updated_text, updated_rating, self.event)
 
         if errors:
             return False, errors
-        
-        self.title = title
-        self.text = text
-        self.rating = rating
+
+        self.title = updated_title
+        self.text = updated_text
+        self.rating = updated_rating
         self.save()
 
         return True, self
-    
+
     @classmethod
-    def delete_rating(cls,id_rating,user):
+    def delete_rating(cls, id_rating, user):
         try:
             rating = cls.objects.get(id=id_rating)
             if rating.user == user:
                 rating.delete()
                 return True, {"message": "Rating eliminado"}
+            else:
+                return False, {"permission": "No tiene permiso para eliminar este rating."}
         except cls.DoesNotExist:
             return False, {"rating": "Rating no encontrado"}
 

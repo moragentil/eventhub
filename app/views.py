@@ -80,6 +80,9 @@ def events(request):
     venue_id = request.GET.get("venue")
     category_id = request.GET.get("category")
 
+    if not date and not venue_id and not category_id:
+        events = events.filter(scheduled_at__gte=timezone.now())
+
     if date:
         events = events.filter(scheduled_at__date=date)
     if venue_id:
@@ -129,6 +132,12 @@ def event_form(request, id=None):
     event = None
     errors = {}
 
+    if id:
+        event = get_object_or_404(Event, pk=id)
+        if event.state == "finalizado":
+            messages.error(request, "No se pueden editar eventos finalizados.")
+            return redirect("events")
+
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
         description = request.POST.get("description", "").strip()
@@ -140,6 +149,17 @@ def event_form(request, id=None):
         category_id = request.POST.get("category")
         discount_code = request.POST.get("discount_code", "").strip()
         discount_percentage = request.POST.get("discount_percentage", "").strip()
+        state = request.POST.get("state", "activo")
+        original_date = request.POST.get("original_date")
+        original_time = request.POST.get("original_time")
+
+        fecha_cambiada = (
+            original_date != date or original_time != time
+        )
+
+        if id and fecha_cambiada and state not in ["cancelado", "reprogramado"]:
+            state = "reprogramado"
+
 
         try:
             scheduled_at = timezone.make_aware(
@@ -189,37 +209,56 @@ def event_form(request, id=None):
                 title, description, scheduled_at, user,
                 price_general, price_vip, venue,
                 category=category,
-                discount=discount
+                discount=discount,
+                state=state,
             )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento creado exitosamente!")
         else:
             event = get_object_or_404(Event, pk=id)
+            previous_state = event.state
             success, validation_errors = event.update(
-                title, description, scheduled_at, user,
-                price_general, price_vip, venue,
-                category,
-                discount=discount
+                title=title,
+                description=description,
+                scheduled_at=scheduled_at,
+                organizer=event.organizer,
+                price_general=price_general,
+                price_vip=price_vip,
+                venue=venue,
+                category=category,
+                discount=discount,
+                state=state
             )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento actualizado exitosamente!")
+        
+            if state in ["cancelado"] and previous_state != state:
+                users = User.objects.filter(tickets__event=event).distinct()
+                if users.exists():
+                    if state == "cancelado":
+                        description = f"El evento {event.title} ha sido cancelado."
+                    Notification.new(
+                        users,
+                        title = f"El evento {event.title} ha sido {state}.",
+                        message=description,
+                        priority="High"
+                    )
 
-        if not success:
-            errors.update(validation_errors)
-            categories = Category.objects.filter(is_active=True)
-            return render(
-                request,
-                "app/event/event_form.html",
-                {
-                    "event": event,
-                    "venues": venues,
-                    "errors": errors,
-                    "editing": id is not None,
-                    "user_is_organizer": user.is_organizer,
-                    "categories": categories
-                },
-            )
         return redirect("events")
 
     elif id:
         event = get_object_or_404(Event, pk=id)
-
+        state = event.state
+        if event.state == "finalizado" or event.state == "cancelado":
+            messages.error(request, f"No se pueden editar eventos {event.state}s.")
+            return redirect("events")
+    else:
+        state = "activo"
+        
     categories = Category.objects.filter(is_active=True)
 
     return render(
@@ -228,6 +267,7 @@ def event_form(request, id=None):
         {
             "event": event,
             "venues": venues,
+            "state": state,
             "errors": errors,
             "editing": id is not None,
             "user_is_organizer": user.is_organizer,
@@ -239,6 +279,10 @@ def event_form(request, id=None):
 @login_required
 def ticket_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
+
+    if event.state in ["agotado", "finalizado", "cancelado"]:
+        messages.error(request, f"No se pueden comprar entradas para este evento porque esta {event.state}.")
+        return redirect("event_detail", id=event.pk)
 
     if event.scheduled_at < timezone.now():
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
@@ -620,21 +664,29 @@ def rating_create(request, event_id):
         return redirect("event_detail", id=event_id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
             rating_value = int(rating_value)
-        except ValueError:
+        except (ValueError, TypeError):
             rating_value = None
 
+        rating_errors = Rating.validate(title, text, rating_value, event)
 
-        if rating_value is None or rating_value < 1 or rating_value > 10:
-            messages.error(request, "La calificación debe estar entre 1 y 10.")
-            return render(request, "app/rating/rating_form.html", {"event": event, "data": request.POST})
+        if rating_errors:
+            return render(
+                request,
+                "app/event/event_detail.html",
+                {
+                    "rating_errors": rating_errors,
+                    "event": event,
+                    "data": {"title": title, "text": text, "rating": rating_value}
+                },
+            )
 
-        success, result = Rating.new(
+        success, rating = Rating.new(
             title=title,
             text=text,
             rating=rating_value,
@@ -646,13 +698,12 @@ def rating_create(request, event_id):
         if success:
             messages.success(request, "Calificación creada exitosamente.")
             return redirect("event_detail", id=event_id)
-        else:
-            return render(
-                request,
-                "app/rating/rating_form.html",
-                {"errors": result, "event": event, "data": request.POST},
-            )
+
+        messages.error(request, "Ocurrió un error al crear la calificación.")
+        return redirect("event_detail", id=event_id)
+
     return render(request, "app/rating/rating_form.html", {"event": event})
+
 
 @login_required
 def rating_delete(request, rating_id):
@@ -660,10 +711,10 @@ def rating_delete(request, rating_id):
 
     if request.method == "POST":
         rating.delete()
-        messages.success(request, "Calificacion eliminada correctamente")
-        return redirect("event_detail", id=rating.event.id)
+        messages.success(request, "Calificación eliminada correctamente.")
     
     return redirect("event_detail", id=rating.event.id)
+
 
 @login_required
 def rating_edit(request, rating_id):
@@ -674,8 +725,8 @@ def rating_edit(request, rating_id):
         return redirect("event_detail", id=rating.event.id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
@@ -683,14 +734,12 @@ def rating_edit(request, rating_id):
         except (ValueError, TypeError):
             rating_value = None
 
-        success, result = rating.update(title, text, rating_value)
+        success, rating_errors = rating.update(title, text, rating_value)
 
         if success:
             messages.success(request, "Calificación actualizada correctamente.")
         else:
             messages.error(request, "Error al actualizar la calificación.")
-
-        return redirect("event_detail", id=rating.event.id)
 
     return redirect("event_detail", id=rating.event.id)
 
