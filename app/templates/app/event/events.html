@@ -56,6 +56,7 @@
                 <th>Ubicación</th>
                 <th>Organizador</th>
                 <th>Categorías</th>
+                <th>Estado</th>
                 <th>Acciones</th>
                 <th>Comprar Ticket</th>
             </tr>
@@ -68,6 +69,7 @@
                     <td>{{ event.venue.name }}</td>
                     <td>{{ event.organizer }}</td>
                     <td>{{ event.category.name|default:"Sin categoría" }}</td>
+                    <td>{{ event.state }}</td>
                     <td>
                         <div class="hstack gap-1">
                             <a href="{% url 'event_detail' event.id %}"

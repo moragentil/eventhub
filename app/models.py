@@ -167,6 +167,13 @@ class Category(models.Model):
 
 
 class Event(models.Model):
+    states = [
+        ("activo", "Activo"),
+        ("cancelado", "Cancelado"),
+        ("reprogramado", "Reprogramado"),
+        ("agotado", "Agotado"),
+        ("finalizado", "Finalizado"),
+    ]
     title = models.CharField(max_length=200)
     description = models.TextField()
     scheduled_at = models.DateTimeField()
@@ -177,6 +184,7 @@ class Event(models.Model):
     price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
+    state = models.CharField(max_length=20, choices=states, default="activo")
 
 
     def __str__(self):
@@ -211,7 +219,7 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, state="activo"):
         errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
 
         if len(errors.keys()) > 0:
@@ -230,7 +238,7 @@ class Event(models.Model):
 
         return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, state):
         old_scheduled_at = self.scheduled_at
         old_venue = self.venue
 
@@ -238,7 +246,8 @@ class Event(models.Model):
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
                             price_vip or self.price_vip,
-                            category or self.category)
+                            category or self.category,
+                            state or self.state)
 
         if errors:
             return False, errors
@@ -259,6 +268,8 @@ class Event(models.Model):
             self.venue = venue
         if category is not None:
             self.category = category
+        if state is not None:
+            self.state = state
 
         self.save()
 
@@ -338,6 +349,10 @@ class Ticket(models.Model):
     @classmethod
     def new(cls, quantity, type, user, event):
         errors = cls.validate(quantity, type, event)
+
+        if event.state in ["cancelado", "finalizado", "agotado"]:
+            errors["state"] = "No se pueden comprar entradas para este evento."
+            return None, errors
 
         capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
         sold = sum(ticket.quantity for ticket in event.tickets.all())
