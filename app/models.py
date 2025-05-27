@@ -242,7 +242,7 @@ class Event(models.Model):
         return True, {}
 
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None, state):
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, state, discount=None):
         old_scheduled_at = self.scheduled_at
         old_venue = self.venue
 
