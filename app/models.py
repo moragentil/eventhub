@@ -222,7 +222,7 @@ class Event(models.Model):
 
     @classmethod
     def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None, state="activo"):
-        errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
+        errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category, state)
 
         if len(errors.keys()) > 0:
             return False, errors
