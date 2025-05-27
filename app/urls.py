@@ -55,4 +55,5 @@ urlpatterns = [
     path("comments/<int:comment_id>/edit/", views.comment_edit, name="comment_edit"),
     path("tickets/<int:ticket_id>/survey/", views.submit_survey, name="submit_survey"),
     path("surveys/", views.survey_dashboard, name="survey_dashboard"),
+    path("validate-discount/", views.validate_discount, name="validate_discount"),
 ]
