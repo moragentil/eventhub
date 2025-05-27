@@ -79,6 +79,9 @@ def events(request):
     venue_id = request.GET.get("venue")
     category_id = request.GET.get("category")
 
+    if not date and not venue_id and not category_id:
+        events = events.filter(scheduled_at__gte=timezone.now())
+
     if date:
         events = events.filter(scheduled_at__date=date)
     if venue_id:
