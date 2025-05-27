@@ -10,7 +10,7 @@ from .models import Event, User, Ticket, TicketType,Rating
 from django.db.models import Count, Avg
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Favorite
 
 
 def register(request):
@@ -86,11 +86,16 @@ def events(request):
     if category_id:
         events = events.filter(category_id=category_id)
 
+    user_favorites = []
+    if request.user.is_authenticated:
+        user_favorites = Favorite.objects.filter(user=request.user).values_list("event_id", flat=True)
+
     return render(request, "app/event/events.html", {
         "events": events,
         "venues": venues,
         "categories": categories,
         "user_is_organizer": request.user.is_organizer,
+        "user_favorites": user_favorites,
     })
 
 
