@@ -4,17 +4,14 @@ import re
 from django.utils import timezone
 from playwright.sync_api import expect
 
-from app.models import Event, User
-
+from app.models import Category, Event, User, Venue
 from app.test.test_e2e.base import BaseE2ETest
 
 
 class EventBaseTest(BaseE2ETest):
     """Clase base específica para tests de eventos"""
-
     def setUp(self):
         super().setUp()
-
         # Crear usuario organizador
         self.organizer = User.objects.create_user(
             username="organizador",
@@ -22,7 +19,6 @@ class EventBaseTest(BaseE2ETest):
             password="password123",
             is_organizer=True,
         )
-
         # Crear usuario regular
         self.regular_user = User.objects.create_user(
             username="usuario",
@@ -30,49 +26,61 @@ class EventBaseTest(BaseE2ETest):
             password="password123",
             is_organizer=False,
         )
-
+        # Crear dos venues
+        self.venue1 = Venue.objects.create(name="Lugar E2E", address="Calle 123", capacity=100)
+        self.venue2 = Venue.objects.create(name="Auditorio Central", address="Av. Principal 456", capacity=300)
+        # Crear dos categorías
+        self.category1 = Category.objects.create(name="Conciertos", description="Shows musicales")
+        self.category2 = Category.objects.create(name="Conferencias", description="Charlas educativas")
         # Crear eventos de prueba
-        # Evento 1
         event_date1 = timezone.make_aware(datetime.datetime(2025, 2, 10, 10, 10))
         self.event1 = Event.objects.create(
             title="Evento de prueba 1",
             description="Descripción del evento 1",
             scheduled_at=event_date1,
             organizer=self.organizer,
+            price_general=100.00,
+            price_vip=200.00,
+            venue=self.venue1,
+            category=self.category1
         )
-
-        # Evento 2
         event_date2 = timezone.make_aware(datetime.datetime(2025, 3, 15, 14, 30))
         self.event2 = Event.objects.create(
             title="Evento de prueba 2",
             description="Descripción del evento 2",
             scheduled_at=event_date2,
             organizer=self.organizer,
+            price_general=150.00,
+            price_vip=250.00,
+            venue=self.venue2,
+            category=self.category2
         )
 
     def _table_has_event_info(self):
-        """Método auxiliar para verificar que la tabla tiene la información correcta de eventos"""
-        # Verificar encabezados de la tabla
+        """Verifica que la tabla contiene la información correcta de eventos"""
         headers = self.page.locator("table thead th")
         expect(headers.nth(0)).to_have_text("Título")
-        expect(headers.nth(1)).to_have_text("Descripción")
-        expect(headers.nth(2)).to_have_text("Fecha")
-        expect(headers.nth(3)).to_have_text("Acciones")
+        expect(headers.nth(1)).to_have_text("Fecha")
+        expect(headers.nth(2)).to_have_text("Ubicación")
+        expect(headers.nth(3)).to_have_text("Organizador")
+        expect(headers.nth(4)).to_have_text("Categorías")
 
-        # Verificar que los eventos aparecen en la tabla
         rows = self.page.locator("table tbody tr")
         expect(rows).to_have_count(2)
 
-        # Verificar datos del primer evento
         row0 = rows.nth(0)
         expect(row0.locator("td").nth(0)).to_have_text("Evento de prueba 1")
-        expect(row0.locator("td").nth(1)).to_have_text("Descripción del evento 1")
-        expect(row0.locator("td").nth(2)).to_have_text("10 feb 2025, 10:10")
+        expect(row0.locator("td").nth(1)).to_have_text("10/02/2025 10:10")
+        expect(row0.locator("td").nth(2)).to_have_text("Lugar E2E")
+        expect(row0.locator("td").nth(3)).to_have_text("organizador")
+        expect(row0.locator("td").nth(4)).to_have_text("Conciertos")
 
-        # Verificar datos del segundo evento
-        expect(rows.nth(1).locator("td").nth(0)).to_have_text("Evento de prueba 2")
-        expect(rows.nth(1).locator("td").nth(1)).to_have_text("Descripción del evento 2")
-        expect(rows.nth(1).locator("td").nth(2)).to_have_text("15 mar 2025, 14:30")
+        row1 = rows.nth(1)
+        expect(row1.locator("td").nth(0)).to_have_text("Evento de prueba 2")
+        expect(row1.locator("td").nth(1)).to_have_text("15/03/2025 14:30")
+        expect(row1.locator("td").nth(2)).to_have_text("Auditorio Central")
+        expect(row1.locator("td").nth(3)).to_have_text("organizador")
+        expect(row1.locator("td").nth(4)).to_have_text("Conferencias")
 
     def _table_has_correct_actions(self, user_type):
         """Método auxiliar para verificar que las acciones son correctas según el tipo de usuario"""
@@ -83,13 +91,13 @@ class EventBaseTest(BaseE2ETest):
         delete_form = row0.locator("form")
 
         expect(detail_button).to_be_visible()
-        expect(detail_button).to_have_attribute("href", f"/events/{self.event1.id}/")
+        expect(detail_button).to_have_attribute("href", f"/events/{self.event1.pk}/")
 
         if user_type == "organizador":
             expect(edit_button).to_be_visible()
-            expect(edit_button).to_have_attribute("href", f"/events/{self.event1.id}/edit/")
+            expect(edit_button).to_have_attribute("href", f"/events/{self.event1.pk}/edit/")
 
-            expect(delete_form).to_have_attribute("action", f"/events/{self.event1.id}/delete/")
+            expect(delete_form).to_have_attribute("action", f"/events/{self.event1.pk}/delete/")
             expect(delete_form).to_have_attribute("method", "POST")
 
             delete_button = delete_form.get_by_role("button", name="Eliminar")
@@ -204,6 +212,8 @@ class EventCRUDTest(EventBaseTest):
 
     def test_create_new_event_organizer(self):
         """Test que verifica la funcionalidad de crear un nuevo evento para organizadores"""
+        venue = Venue.objects.create(name="Lugar E2E", address="Av. Test 123", capacity=100)
+        category = Category.objects.create(name="Conciertos", description="Eventos musicales")
         # Iniciar sesión como organizador
         self.login_user("organizador", "password123")
 
@@ -225,6 +235,10 @@ class EventCRUDTest(EventBaseTest):
         self.page.get_by_label("Descripción").fill("Descripción creada desde prueba E2E")
         self.page.get_by_label("Fecha").fill("2025-06-15")
         self.page.get_by_label("Hora").fill("16:45")
+        self.page.get_by_label("Precio General").fill("100.00")
+        self.page.get_by_label("Precio VIP").fill("200.00")
+        self.page.select_option("#venue", value=str(venue.pk))
+        self.page.select_option("#category", value=str(category.pk))
 
         # Enviar el formulario
         self.page.get_by_role("button", name="Crear Evento").click()
@@ -236,57 +250,52 @@ class EventCRUDTest(EventBaseTest):
         rows = self.page.locator("table tbody tr")
         expect(rows).to_have_count(3)
 
-        row = self.page.locator("table tbody tr").last
+        row=self.page.locator("table tbody tr").last
         expect(row.locator("td").nth(0)).to_have_text("Evento de prueba E2E")
-        expect(row.locator("td").nth(1)).to_have_text("Descripción creada desde prueba E2E")
-        expect(row.locator("td").nth(2)).to_have_text("15 jun 2025, 16:45")
+        expect(row.locator("td").nth(1)).to_have_text("15/06/2025 16:45")
+        expect(row.locator("td").nth(2)).to_have_text("Lugar E2E")
+        expect(row.locator("td").nth(4)).to_have_text("Conciertos")
+
+
 
     def test_edit_event_organizer(self):
         """Test que verifica la funcionalidad de editar un evento para organizadores"""
-        # Iniciar sesión como organizador
         self.login_user("organizador", "password123")
-
-        # Ir a la página de eventos
         self.page.goto(f"{self.live_server_url}/events/")
 
-        # Hacer clic en el botón editar del primer evento
         self.page.get_by_role("link", name="Editar").first.click()
+        expect(self.page).to_have_url(f"{self.live_server_url}/events/{self.event1.pk}/edit/")
+        expect(self.page.locator("h1")).to_have_text("Editar evento")
+        # Validar valores originales
+        expect(self.page.get_by_label("Título del Evento")).to_have_value("Evento de prueba 1")
+        expect(self.page.get_by_label("Descripción")).to_have_value("Descripción del evento 1")
+        expect(self.page.get_by_label("Fecha")).to_have_value("2025-02-10")
+        expect(self.page.get_by_label("Hora")).to_have_value("10:10")
+        expect(self.page.get_by_label("Precio General")).to_have_value("100.000000")
+        expect(self.page.get_by_label("Precio VIP")).to_have_value("200.000000")
+        expect(self.page.locator("#venue")).to_have_value(str(self.venue1.pk))
+        expect(self.page.locator("#category")).to_have_value(str(self.category1.pk))
+        # Rellenar nuevos datos
+        self.page.get_by_label("Título del Evento").fill("Titulo editado")
+        self.page.get_by_label("Descripción").fill("Descripcion editada")
+        self.page.get_by_label("Fecha").fill("2025-04-20")
+        self.page.get_by_label("Hora").fill("03:00")
+        self.page.get_by_label("Precio General").fill("123.00")
+        self.page.get_by_label("Precio VIP").fill("456.00")
+        self.page.select_option("#venue", value=str(self.venue2.pk))
+        self.page.select_option("#category", value=str(self.category2.pk))
+        self.page.get_by_role("button", name="Actualizar Evento").click()
 
-        # Verificar que estamos en la página de edición
-        expect(self.page).to_have_url(f"{self.live_server_url}/events/{self.event1.id}/edit/")
+        self.page.wait_for_selector("h1", timeout=10000)
+        expect(self.page.locator("h1")).to_have_text("Eventos")
 
-        header = self.page.locator("h1")
-        expect(header).to_have_text("Editar evento")
-        expect(header).to_be_visible()
-
-        # Verificar que el formulario está precargado con los datos del evento y luego los editamos
-        title = self.page.get_by_label("Título del Evento")
-        expect(title).to_have_value("Evento de prueba 1")
-        title.fill("Titulo editado")
-
-        description = self.page.get_by_label("Descripción")
-        expect(description).to_have_value("Descripción del evento 1")
-        description.fill("Descripcion Editada")
-
-        date = self.page.get_by_label("Fecha")
-        expect(date).to_have_value("2025-02-10")
-        date.fill("2025-04-20")
-
-        time = self.page.get_by_label("Hora")
-        expect(time).to_have_value("10:10")
-        time.fill("03:00")
-
-        # Enviar el formulario
-        self.page.get_by_role("button", name="Crear Evento").click()
-
-        # Verificar que redirigió a la página de eventos
-        expect(self.page).to_have_url(f"{self.live_server_url}/events/")
-
-        # Verificar que el título del evento ha sido actualizado
-        row = self.page.locator("table tbody tr").last
+        # Verificar valores editados en la tabla
+        row = self.page.locator("table tbody tr").first
         expect(row.locator("td").nth(0)).to_have_text("Titulo editado")
-        expect(row.locator("td").nth(1)).to_have_text("Descripcion Editada")
-        expect(row.locator("td").nth(2)).to_have_text("20 abr 2025, 03:00")
+        expect(row.locator("td").nth(1)).to_have_text("20/04/2025 03:00")
+        expect(row.locator("td").nth(2)).to_have_text("Auditorio Central")
+        expect(row.locator("td").nth(3)).to_have_text("organizador")
+        expect(row.locator("td").nth(4)).to_have_text("Conferencias")
 
     def test_delete_event_organizer(self):
         """Test que verifica la funcionalidad de eliminar un evento para organizadores"""
