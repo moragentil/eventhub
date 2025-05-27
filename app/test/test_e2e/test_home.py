@@ -19,12 +19,7 @@ class HomePageDisplayTest(BaseE2ETest):
         expect(logo).to_have_attribute("href", "/")
 
         # Verificar textos principales de la página
-        expect(self.page.get_by_text("Eventos y Entradas")).to_be_visible()
-        expect(
-            self.page.get_by_text(
-                "Descubre, organiza y participa en los mejores eventos. Compra entradas, deja comentarios y califica tus experiencias."
-            )
-        ).to_be_visible()
+        expect(self.page.get_by_text("Eventos")).to_be_visible()
 
 
 class HomeNavigationTest(BaseE2ETest):

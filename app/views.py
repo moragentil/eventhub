@@ -7,10 +7,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
 from .models import Event, User, Ticket, TicketType,Rating
-from django.db.models import Count
+from django.db.models import Count, Avg
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey
 
 
 def register(request):
@@ -78,6 +78,9 @@ def events(request):
     date = request.GET.get("date")
     venue_id = request.GET.get("venue")
     category_id = request.GET.get("category")
+
+    if not date and not venue_id and not category_id:
+        events = events.filter(scheduled_at__gte=timezone.now())
 
     if date:
         events = events.filter(scheduled_at__date=date)
@@ -278,9 +281,19 @@ def ticket_create(request, event_id):
             user=request.user,
             event=event,
         )
-
         if ticket:
-            return redirect("user_ticket_list")
+            return render(
+                request,
+                "app/ticket/ticket_form.html",
+                {
+                    "event": event,
+                    "data": {},
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                    "mostrar_encuesta": True,
+                    "ticket_id": ticket.pk,
+                },
+            )
         else:
             return render(
                 request,
@@ -304,6 +317,7 @@ def ticket_create(request, event_id):
             "total_amount": total_amount,
         },
     )
+
 
 
 @login_required
@@ -588,21 +602,29 @@ def rating_create(request, event_id):
         return redirect("event_detail", id=event_id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
             rating_value = int(rating_value)
-        except ValueError:
+        except (ValueError, TypeError):
             rating_value = None
 
+        rating_errors = Rating.validate(title, text, rating_value, event)
 
-        if rating_value is None or rating_value < 1 or rating_value > 10:
-            messages.error(request, "La calificación debe estar entre 1 y 10.")
-            return render(request, "app/rating/rating_form.html", {"event": event, "data": request.POST})
+        if rating_errors:
+            return render(
+                request,
+                "app/event/event_detail.html",
+                {
+                    "rating_errors": rating_errors,
+                    "event": event,
+                    "data": {"title": title, "text": text, "rating": rating_value}
+                },
+            )
 
-        success, result = Rating.new(
+        success, rating = Rating.new(
             title=title,
             text=text,
             rating=rating_value,
@@ -614,13 +636,12 @@ def rating_create(request, event_id):
         if success:
             messages.success(request, "Calificación creada exitosamente.")
             return redirect("event_detail", id=event_id)
-        else:
-            return render(
-                request,
-                "app/rating/rating_form.html",
-                {"errors": result, "event": event, "data": request.POST},
-            )
+
+        messages.error(request, "Ocurrió un error al crear la calificación.")
+        return redirect("event_detail", id=event_id)
+
     return render(request, "app/rating/rating_form.html", {"event": event})
+
 
 @login_required
 def rating_delete(request, rating_id):
@@ -628,10 +649,10 @@ def rating_delete(request, rating_id):
 
     if request.method == "POST":
         rating.delete()
-        messages.success(request, "Calificacion eliminada correctamente")
-        return redirect("event_detail", id=rating.event.id)
+        messages.success(request, "Calificación eliminada correctamente.")
     
     return redirect("event_detail", id=rating.event.id)
+
 
 @login_required
 def rating_edit(request, rating_id):
@@ -642,8 +663,8 @@ def rating_edit(request, rating_id):
         return redirect("event_detail", id=rating.event.id)
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        text = request.POST.get("text")
+        title = request.POST.get("title", "").strip()
+        text = request.POST.get("text", "").strip()
         rating_value = request.POST.get("rating")
 
         try:
@@ -651,14 +672,12 @@ def rating_edit(request, rating_id):
         except (ValueError, TypeError):
             rating_value = None
 
-        success, result = rating.update(title, text, rating_value)
+        success, rating_errors = rating.update(title, text, rating_value)
 
         if success:
             messages.success(request, "Calificación actualizada correctamente.")
         else:
             messages.error(request, "Error al actualizar la calificación.")
-
-        return redirect("event_detail", id=rating.event.id)
 
     return redirect("event_detail", id=rating.event.id)
 
@@ -1004,3 +1023,53 @@ def comment_edit(request, comment_id):
         return redirect("event_detail", id=comment.event.id)
 
     return redirect("event_detail", id=comment.event.id)
+
+@login_required
+def submit_survey(request, ticket_id):
+    ticket = get_object_or_404(Ticket, id=ticket_id, user=request.user)
+
+    if hasattr(ticket, 'survey'):
+        return redirect('home')
+
+    if request.method == "POST":
+        comfort = request.POST.get("comfort_rating")
+        clarity = request.POST.get("clarity_rating")
+        satisfaction = request.POST.get("satisfaction_rating")
+        comment = request.POST.get("comment", "")
+
+        survey, errors = SatisfactionSurvey.new(
+            ticket=ticket,
+            comfort_rating=comfort,
+            clarity_rating=clarity,
+            satisfaction_rating=satisfaction,
+            comment=comment
+        )
+
+        if errors:
+            return render(request, "app/satisfaction_survey/satisfaction_survey_form.html", {
+                "errors": errors,
+                "ticket": ticket,
+                "form_data": request.POST
+            })
+
+        return redirect("events") 
+
+    return render(request, "app/satisfaction_survey/satisfaction_survey_form.html", {"ticket": ticket})
+
+@login_required
+def survey_dashboard(request):
+    if not request.user.is_organizer:
+        return redirect('home')
+
+    surveys = SatisfactionSurvey.objects.select_related("ticket__event").all()
+
+    promedio_comfort = surveys.aggregate(prom=Avg("comfort_rating"))["prom"]
+    promedio_clarity = surveys.aggregate(prom=Avg("clarity_rating"))["prom"]
+    promedio_satisfaction = surveys.aggregate(prom=Avg("satisfaction_rating"))["prom"]
+
+    return render(request, "app/satisfaction_survey/survey_dashboard.html", {
+        "surveys": surveys,
+        "promedio_comfort": promedio_comfort,
+        "promedio_clarity": promedio_clarity,
+        "promedio_satisfaction": promedio_satisfaction,
+    })

@@ -52,6 +52,39 @@
     </div>
 </div>
 
+{% if mostrar_encuesta and ticket_id %}
+<div class="modal fade" id="surveyPromptModal" tabindex="-1" aria-labelledby="surveyPromptModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" id="surveyPromptModalLabel">Encuesta de Satisfacción</h5>
+        </div>
+        <div class="modal-body">
+            <p>Gracias por tu compra. ¿Querés completar una breve encuesta de satisfacción?</p>
+        </div>
+        <div class="modal-footer">
+            <a href="{% url 'submit_survey' ticket_id %}" class="btn btn-primary">Sí, completar encuesta</a>
+            <a href="{% url 'user_ticket_list' %}" class="btn btn-secondary" onclick="noMostrarEncuesta()">No, gracias</a>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    function noMostrarEncuesta() {
+        localStorage.setItem('encuestaMostrada_{{ ticket_id }}', 'true');
+    }
+
+    window.onload = function () {
+        const encuestaKey = 'encuestaMostrada_{{ ticket_id }}';
+        if (!localStorage.getItem(encuestaKey)) {
+            const modal = new bootstrap.Modal(document.getElementById('surveyPromptModal'));
+            modal.show();
+        }
+    };
+</script>
+{% endif %}
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const quantityInput = document.getElementById("quantity");

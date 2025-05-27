@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Encuesta de Satisfacción{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Encuesta de satisfacción</h2>
+    <p>Gracias por tu compra. Por favor, valorá tu experiencia.</p>
+
+    {% if errors %}
+        <div class="alert alert-danger">
+            <ul>
+                {% for field, error in errors.items %}
+                    <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label class="form-label">¿Qué tan cómodo fue el proceso de compra?</label>
+            <div class="star-rating">
+                {% for i in "54321" %}
+                    <input type="radio" id="comfort_{{ i }}" name="comfort_rating" value="{{ i }}" required>
+                    <label for="comfort_{{ i }}">★</label>
+                {% endfor %}
+            </div>
+        </div>
+
+
+        <div class="mb-3">
+            <label class="form-label">¿La información fue clara?</label>
+            <div class="star-rating">
+                {% for i in "54321" %}
+                    <input type="radio" id="clarity_{{ i }}" name="clarity_rating" value="{{ i }}" required>
+                    <label for="clarity_{{ i }}">★</label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">¿Qué tan satisfecho estás con tu experiencia?</label>
+            <div class="star-rating">
+                {% for i in "54321" %}
+                    <input type="radio" id="satisfaction_{{ i }}" name="satisfaction_rating" value="{{ i }}" required>
+                    <label for="satisfaction_{{ i }}">★</label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="comment" class="form-label">Comentario (opcional)</label>
+            <textarea name="comment" class="form-control" rows="3">{{ form_data.comment }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Enviar</button>
+        <a href="{% url 'events' %}" class="btn btn-secondary ms-2">Omitir</a>
+    </form>
+</div>
+<style>
+.star-rating {
+  direction: rtl;
+  font-size: 1.5rem;
+  unicode-bidi: bidi-override;
+  display: inline-flex;
+}
+.star-rating input {
+  display: none;
+}
+.star-rating label {
+  color: #ccc;
+  cursor: pointer;
+}
+.star-rating input:checked ~ label,
+.star-rating label:hover,
+.star-rating label:hover ~ label {
+  color: #f5c518;
+}
+</style>
+{% endblock %}

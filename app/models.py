@@ -239,6 +239,9 @@ class Event(models.Model):
         return True, {}
 
     def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, state):
+        old_scheduled_at = self.scheduled_at
+        old_venue = self.venue
+
         errors = self.validate(title or self.title, description or self.description,
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
@@ -269,7 +272,28 @@ class Event(models.Model):
             self.state = state
 
         self.save()
-        return True, None
+
+        fecha_cambiada = scheduled_at is not None and self.scheduled_at != old_scheduled_at
+        lugar_cambiado = venue is not None and self.venue != old_venue
+
+        if fecha_cambiada or lugar_cambiado:
+            users = User.objects.filter(tickets__event=self).distinct()
+            if users.exists():
+                changes = []
+                if fecha_cambiada:
+                    changes.append(f"Fecha antigua: {old_scheduled_at.strftime('%d/%m/%Y %H:%M')} \n Fecha actualizada: {self.scheduled_at.strftime('%d/%m/%Y %H:%M')}")
+                if lugar_cambiado:
+                    changes.append(f"Lugar antiguo: {old_venue.name if old_venue else 'Sin lugar'} \n Nuevo lugar: {self.venue.name if self.venue else 'Sin lugar'}")
+                detail = "\n".join(changes)
+                message = ( f"El evento {self.title} ha sido modificado.\n" f"{detail}\n" f"Fecha de modificación: {timezone.now().strftime('%d/%m/%Y %H:%M')}" )
+                Notification.new(
+                    users=users,
+                    title=f"{self.title}",
+                    message=message,
+                    priority="High"
+                )
+                
+        return True, {}
 
 
 def code_generator(length=20):
@@ -532,70 +556,89 @@ class Comment(models.Model):
             return False, {"comment": "Comentario no encontrado."}
         
 
+from django.utils import timezone
+
 class Rating(models.Model):
     title = models.CharField(max_length=200)
     text = models.TextField()
     rating = models.IntegerField()
     created_at = models.DateTimeField()
-    user =  models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
-    event =  models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
 
     def __str__(self):
         return f"Rating for {self.event.title} by {self.user.username}"
-    
+
     @classmethod
-    def validate(cls,title,text,rating,event):
+    def validate(cls, title, text, rating, event):
         errors = {}
 
-        if title is None:
-            errors["title"] = "Por favor ingrese un titulo"
-        if text is None:
-            errors["text"] = "Por favor ingrese un titulo"
+        if not title:
+            errors["title"] = "El título es obligatorio."
+        elif len(title) > 200:
+            errors["title"] = "El título no puede exceder los 200 caracteres."
+
+        if not text:
+            errors["text"] = "El comentario es obligatorio."
+        elif len(text.strip()) == 0:
+            errors["text"] = "El comentario no puede estar vacío."
+
         if rating is None:
-            errors["rating"] = "Por favor ingrese un titulo"
+            errors["rating"] = "La calificación es obligatoria."
+        elif not isinstance(rating, int):
+            errors["rating"] = "La calificación debe ser un número entero."
+        elif rating < 1 or rating > 10:
+            errors["rating"] = "La calificación debe estar entre 1 y 5."
+
         if event is None:
-            errors["event"] = "Por favor ingrese un titulo"
+            errors["event"] = "Debe asociar el comentario a un evento."
 
         return errors
-    
+
     @classmethod
-    def new(cls,title,text,rating,created_at,user,event):
-        errors = Rating.validate(title,text,rating,event)
+    def new(cls, title, text, rating, created_at, user, event):
+        errors = cls.validate(title, text, rating, event)
 
         if errors:
-            return False,errors 
-        
-        rating = cls.objects.create(
-            title= title,
-            text= text,
-            rating= rating,
-            created_at= timezone.now(),
-            user= user,
-            event= event
+            return None, errors
+
+        rating_obj = cls.objects.create(
+            title=title,
+            text=text,
+            rating=rating,
+            created_at=created_at or timezone.now(),
+            user=user,
+            event=event
         )
 
-        return True, rating
-    
-    def update(self,title,text,rating):
-        errors = self.validate(title, text, rating, self.event)
+        return rating_obj, None
+
+    def update(self, title=None, text=None, rating=None):
+        updated_title = title or self.title
+        updated_text = text or self.text
+        updated_rating = rating if rating is not None else self.rating
+
+        errors = self.validate(updated_title, updated_text, updated_rating, self.event)
 
         if errors:
             return False, errors
-        
-        self.title = title
-        self.text = text
-        self.rating = rating
+
+        self.title = updated_title
+        self.text = updated_text
+        self.rating = updated_rating
         self.save()
 
         return True, self
-    
+
     @classmethod
-    def delete_rating(cls,id_rating,user):
+    def delete_rating(cls, id_rating, user):
         try:
             rating = cls.objects.get(id=id_rating)
             if rating.user == user:
                 rating.delete()
                 return True, {"message": "Rating eliminado"}
+            else:
+                return False, {"permission": "No tiene permiso para eliminar este rating."}
         except cls.DoesNotExist:
             return False, {"rating": "Rating no encontrado"}
 
@@ -700,3 +743,57 @@ class Notification(models.Model):
             return True, None
         except cls.DoesNotExist:
             return False, {"error": "Notificación no encontrada"}
+
+
+class SatisfactionSurvey(models.Model):
+    RATING_CHOICES = [(str(i), str(i)) for i in range(1, 6)]
+
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name="survey")
+    comfort_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    clarity_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    satisfaction_rating = models.CharField(max_length=1, choices=RATING_CHOICES)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Survey for {self.ticket.ticket_code} by {self.ticket.user.username}"
+
+    @classmethod
+    def validate(cls, ticket, comfort_rating, clarity_rating, satisfaction_rating):
+        errors = {}
+
+        if ticket is None:
+            errors["ticket"] = "Debe seleccionar una compra válida."
+
+        if SatisfactionSurvey.objects.filter(ticket=ticket).exists():
+            errors["duplicate"] = "Ya existe una encuesta para esta compra."
+
+        for field, value in {
+            "comfort_rating": comfort_rating,
+            "clarity_rating": clarity_rating,
+            "satisfaction_rating": satisfaction_rating,
+        }.items():
+            try:
+                val = int(value)
+                if not (1 <= val <= 5):
+                    errors[field] = "La puntuación debe estar entre 1 y 5."
+            except ValueError:
+                errors[field] = "La puntuación debe ser un número entero entre 1 y 5."
+
+        return errors
+
+    @classmethod
+    def new(cls, ticket, comfort_rating, clarity_rating, satisfaction_rating, comment=""):
+        errors = cls.validate(ticket, comfort_rating, clarity_rating, satisfaction_rating)
+        if errors:
+            return None, errors
+
+        survey = cls.objects.create(
+            ticket=ticket,
+            comfort_rating=comfort_rating,
+            clarity_rating=clarity_rating,
+            satisfaction_rating=satisfaction_rating,
+            comment=comment
+        )
+        return survey, None
+

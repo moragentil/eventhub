@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Encuestas de satisfacción</h2>
+
+    <div class="my-3">
+        <p><strong>Promedio comodidad:</strong> {{ promedio_comfort|default:"-" }}</p>
+        <p><strong>Promedio claridad:</strong> {{ promedio_clarity|default:"-" }}</p>
+        <p><strong>Promedio satisfacción:</strong> {{ promedio_satisfaction|default:"-" }}</p>
+    </div>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Usuario</th>
+                <th>Evento</th>
+                <th>Comodidad</th>
+                <th>Claridad</th>
+                <th>Satisfacción</th>
+                <th>Comentario</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for survey in surveys %}
+            <tr>
+                <td>{{ survey.ticket.user.username }}</td>
+                <td>{{ survey.ticket.event.title }}</td>
+                <td>
+                    <div class="star-display">
+                        {% for i in "12345" %}
+                            <span class="{% if i|add:'0' <= survey.comfort_rating|add:'0' %}filled{% endif %}">★</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>
+                    <div class="star-display">
+                        {% for i in "12345" %}
+                            <span class="{% if i|add:'0' <= survey.clarity_rating|add:'0' %}filled{% endif %}">★</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>
+                    <div class="star-display">
+                        {% for i in "12345" %}
+                            <span class="{% if i|add:'0' <= survey.satisfaction_rating|add:'0' %}filled{% endif %}">★</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>{{ survey.comment|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<style>
+.star-display {
+    display: inline-block;
+    font-size: 1.2rem;
+    color: #ccc;
+}
+.star-display .filled {
+    color: #f5c518;
+}
+
+.star-avg {
+  display: inline-block;
+  font-size: 1.5rem;
+  color: #ccc;
+  position: relative;
+}
+
+.star-avg .full {
+  color: #f5c518;
+}
+.star-avg .half {
+  position: relative;
+}
+.star-avg .half::before {
+  content: '★';
+  color: #f5c518;
+  position: absolute;
+  width: 50%;
+  overflow: hidden;
+}
+.star-avg .empty {
+  color: #ccc;
+}
+</style>
+{% endblock %}
