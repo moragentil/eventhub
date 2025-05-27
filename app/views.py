@@ -555,12 +555,6 @@ def venue_detail(request, id):
     return render(request, "app/venue/venue_detail.html", {"venue": venue})
 
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from app.models import Rating, Event, Ticket
-
 @login_required
 def rating_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
@@ -580,14 +574,14 @@ def rating_create(request, event_id):
         except (ValueError, TypeError):
             rating_value = None
 
-        errors = Rating.validate(title, text, rating_value, event)
+        rating_errors = Rating.validate(title, text, rating_value, event)
 
-        if errors:
+        if rating_errors:
             return render(
                 request,
                 "app/event/event_detail.html",
                 {
-                    "errors": errors,
+                    "rating_errors": rating_errors,
                     "event": event,
                     "data": {"title": title, "text": text, "rating": rating_value}
                 },
@@ -641,13 +635,12 @@ def rating_edit(request, rating_id):
         except (ValueError, TypeError):
             rating_value = None
 
-        success, errors = rating.update(title, text, rating_value)
+        success, rating_errors = rating.update(title, text, rating_value)
 
         if success:
             messages.success(request, "Calificación actualizada correctamente.")
         else:
             messages.error(request, "Error al actualizar la calificación.")
-            # Podrías redirigir con errores si querés volver a mostrar el formulario
 
     return redirect("event_detail", id=rating.event.id)
 

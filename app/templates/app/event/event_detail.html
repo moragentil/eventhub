@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
     <div class="row">
-        {% if errors %}
+        {% if rating_errors %}
             <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
                 Por favor corrige los errores en el formulario de Calificación antes de enviarlo.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
@@ -148,7 +148,7 @@
                 <div class="mb-3">
                     <label for="title" class="form-label">Título de la reseña</label>
                     <input type="text" name="title" class="form-control" id="title" value="{{ data.title|default:'' }}">
-                    {% if errors.title %}<div class="text-danger">{{ errors.title }}</div>{% endif %}
+                    {% if rating_errors.title %}<div class="text-danger">{{ rating_errors.title }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Tu calificación</label>
@@ -158,13 +158,13 @@
                         {% endfor %}
                     </div>
                     <input type="hidden" name="rating" id="rating-input" value="{{ data.rating|default:'0' }}">
-                    {% if errors.rating %}<div class="text-danger">{{ errors.rating }}</div>{% endif %}
+                    {% if rating_errors.rating %}<div class="text-danger">{{ rating_errors.rating }}</div>{% endif %}
                 </div>
                 
                 <div class="mb-3">
                     <label for="text" class="form-label">Tu reseña (opcional)</label>
                     <textarea name="text" class="form-control" id="text" rows="3">{{ data.text|default:'' }}</textarea>
-                    {% if errors.text %}<div class="text-danger">{{ errors.text }}</div>{% endif %}
+                    {% if rating_errors.text %}<div class="text-danger">{{ rating_errors.text }}</div>{% endif %}
                 </div>
                 <button type="submit" class="btn btn-primary">Enviar calificación</button>
             </form>
