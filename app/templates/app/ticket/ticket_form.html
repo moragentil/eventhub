@@ -14,6 +14,21 @@
         </div>
     {% endif %}
 
+    {% if ticket_id %}
+        <div class="alert alert-success mt-4">
+            <h5>¡Compra realizada!</h5>
+            <p>
+                <strong>Total pagado:</strong>
+                {% if discount_applied %}
+                    <span class="text-decoration-line-through text-danger">${{ original_total }}</span>
+                    <span class="ms-2 text-success fw-bold">${{ total_amount|floatformat:2 }}</span>
+                {% else %}
+                    <span class="fw-bold">${{ total_amount|floatformat:2 }}</span>
+                {% endif %}
+            </p>
+        </div>
+    {% endif %}
+
     <form method="post">
         {% csrf_token %}
         
