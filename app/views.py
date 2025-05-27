@@ -10,7 +10,8 @@ from .models import Event, User, Ticket, TicketType,Rating
 from django.db.models import Count, Avg
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey
+from django.http import JsonResponse
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Discount
 
 
 def register(request):
@@ -146,6 +147,8 @@ def event_form(request, id=None):
         price_vip = request.POST.get("price_vip")
         venue_id = request.POST.get("venue")
         category_id = request.POST.get("category")
+        discount_code = request.POST.get("discount_code", "").strip()
+        discount_percentage = request.POST.get("discount_percentage", "").strip()
         state = request.POST.get("state", "activo")
         original_date = request.POST.get("original_date")
         original_time = request.POST.get("original_time")
@@ -156,6 +159,7 @@ def event_form(request, id=None):
 
         if id and fecha_cambiada and state not in ["cancelado", "reprogramado"]:
             state = "reprogramado"
+
 
         try:
             scheduled_at = timezone.make_aware(
@@ -178,11 +182,35 @@ def event_form(request, id=None):
         venue = get_object_or_404(Venue, pk=venue_id)
         category = get_object_or_404(Category, pk=category_id) if category_id else None
 
+        discount = None
+        if discount_code and discount_percentage:
+            # Validar longitud y tipo
+            if len(discount_code) > 10:
+                errors["discount_code"] = "El código no puede tener más de 10 caracteres."
+            try:
+                discount_pct = int(discount_percentage)
+                if discount_pct <= 0 or discount_pct > 100:
+                    errors["discount_percentage"] = "El porcentaje debe estar entre 1 y 100."
+            except Exception:
+                errors["discount_percentage"] = "El porcentaje debe ser un número válido."
+            # Crear o buscar descuento
+            if not errors.get("discount_code") and not errors.get("discount_percentage"):
+                discount_obj, created = Discount.objects.get_or_create(
+                    code=discount_code,
+                    defaults={"percentage": discount_pct}
+                )
+                if not created:
+                    discount_obj.percentage = discount_pct
+                    discount_obj.save()
+                discount = discount_obj
+
         if id is None:
             success, validation_errors = Event.new(
                 title, description, scheduled_at, user,
                 price_general, price_vip, venue,
-                category=category, state=state
+                category=category,
+                discount=discount,
+                state=state,
             )
             if not success:
                 errors.update(validation_errors)
@@ -200,6 +228,7 @@ def event_form(request, id=None):
                 price_vip=price_vip,
                 venue=venue,
                 category=category,
+                discount=discount,
                 state=state
             )
             if not success:
@@ -242,7 +271,8 @@ def event_form(request, id=None):
             "errors": errors,
             "editing": id is not None,
             "user_is_organizer": user.is_organizer,
-            "categories": categories},
+            "categories": categories
+        },
     )
 
 
@@ -265,6 +295,7 @@ def ticket_create(request, event_id):
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        discount_code_input = request.POST.get("discount_code", "").strip()
         data = request.POST
 
         try:
@@ -276,6 +307,17 @@ def ticket_create(request, event_id):
             unit_price = event.price_vip
         elif type == "General":
             unit_price = event.price_general
+
+        # Aplicar descuento si corresponde
+        discount_applied = False
+        if unit_price is not None and discount_code_input and event.discount:
+            if discount_code_input.lower() == event.discount.code.lower():
+                percentage = event.discount.percentage or Decimal("0.00")
+                discount_amount = unit_price * (percentage / 100)
+                unit_price = max(Decimal("0.00"), unit_price - discount_amount)
+                discount_applied = True
+            else:
+                messages.error(request, "Código de descuento inválido.")
 
         if unit_price is not None:
             total_amount = unit_price * quantity_int
@@ -297,6 +339,7 @@ def ticket_create(request, event_id):
                     "total_amount": total_amount,
                     "mostrar_encuesta": True,
                     "ticket_id": ticket.pk,
+                    "discount_applied": discount_applied,
                 },
             )
         else:
@@ -351,16 +394,30 @@ def organizer_ticket_list(request):
 @login_required
 def ticket_detail(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    event = ticket.event
+    unit_price = event.price_vip if ticket.type == "VIP" else event.price_general
+    total_amount = unit_price * ticket.quantity
 
-    if ticket.type == 'VIP':
-        total_amount = ticket.quantity * ticket.event.price_vip
-    else:
-        total_amount = ticket.quantity * ticket.event.price_general
+    discount_applied = False
+    discounted_total = None
 
-    return render(request, 'app/ticket/ticket_detail.html', {
-        'ticket': ticket,
-        'total_amount': total_amount,
-    })
+    if event.discount and event.discount.code and event.discount.percentage:
+        percentage = event.discount.percentage
+        discount_amount = unit_price * (percentage / 100)
+        discounted_unit_price = unit_price - discount_amount
+        discounted_total = discounted_unit_price * ticket.quantity
+        discount_applied = True
+
+    return render(
+        request,
+        "app/ticket/ticket_detail.html",
+        {
+            "ticket": ticket,
+            "total_amount": total_amount,
+            "discount_applied": discount_applied,
+            "discounted_total": discounted_total,
+        },
+    )
 
 
 @login_required
@@ -1078,3 +1135,20 @@ def survey_dashboard(request):
         "promedio_clarity": promedio_clarity,
         "promedio_satisfaction": promedio_satisfaction,
     })
+
+@login_required
+def validate_discount(request):
+    code = request.GET.get('code', '')
+    event_id = request.GET.get('event_id')
+    
+    try:
+        event = Event.objects.get(pk=event_id)
+        if event.discount and event.discount.code.lower() == code.lower():
+            return JsonResponse({
+                'valid': True,
+                'percentage': float(event.discount.percentage)
+            })
+    except Event.DoesNotExist:
+        pass
+    
+    return JsonResponse({'valid': False})
