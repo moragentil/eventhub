@@ -148,6 +148,33 @@
                                 </select>
                             </div>
 
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="discount_code" class="form-label">Código de descuento (opcional)</label>
+                                    <input class="form-control {% if errors.discount_code %}is-invalid{% endif %}"
+                                           id="discount_code"
+                                           name="discount_code"
+                                           maxlength="10"
+                                           value="{% if request.method == 'POST' %}{{ request.POST.discount_code }}{% elif event and event.discount %}{{ event.discount.code }}{% endif %}">
+                                    {% if errors.discount_code %}
+                                        <div class="invalid-feedback">{{ errors.discount_code }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="discount_percentage" class="form-label">Porcentaje de descuento (opcional)</label>
+                                    <input class="form-control {% if errors.discount_percentage %}is-invalid{% endif %}"
+                                           id="discount_percentage"
+                                           name="discount_percentage"
+                                           type="number"
+                                           min="1"
+                                           max="100"
+                                           value="{% if request.method == 'POST' %}{{ request.POST.discount_percentage }}{% elif event and event.discount %}{{ event.discount.percentage }}{% endif %}">
+                                    {% if errors.discount_percentage %}
+                                        <div class="invalid-feedback">{{ errors.discount_percentage }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
                             <div>
                                 <button type="submit" class="btn btn-primary">
                                     {% if editing %}
