@@ -350,16 +350,30 @@ def organizer_ticket_list(request):
 @login_required
 def ticket_detail(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    event = ticket.event
+    unit_price = event.price_vip if ticket.type == "VIP" else event.price_general
+    total_amount = unit_price * ticket.quantity
 
-    if ticket.type == 'VIP':
-        total_amount = ticket.quantity * ticket.event.price_vip
-    else:
-        total_amount = ticket.quantity * ticket.event.price_general
+    discount_applied = False
+    discounted_total = None
 
-    return render(request, 'app/ticket/ticket_detail.html', {
-        'ticket': ticket,
-        'total_amount': total_amount,
-    })
+    if event.discount and event.discount.code and event.discount.percentage:
+        percentage = event.discount.percentage
+        discount_amount = unit_price * (percentage / 100)
+        discounted_unit_price = unit_price - discount_amount
+        discounted_total = discounted_unit_price * ticket.quantity
+        discount_applied = True
+
+    return render(
+        request,
+        "app/ticket/ticket_detail.html",
+        {
+            "ticket": ticket,
+            "total_amount": total_amount,
+            "discount_applied": discount_applied,
+            "discounted_total": discounted_total,
+        },
+    )
 
 
 @login_required

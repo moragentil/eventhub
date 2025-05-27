@@ -12,7 +12,19 @@
             <p><strong>Precio unitario:</strong> 
                 ${% if ticket.type == 'VIP' %}{{ ticket.event.price_vip }}{% else %}{{ ticket.event.price_general }}{% endif %}
             </p>
-            <p><strong>Importe total:</strong> ${{ total_amount }}</p>  
+            {% if ticket.event.discount and ticket.event.discount.code and ticket.event.discount.percentage %}
+                <p>
+                    <strong>Descuento aplicado:</strong>
+                    {{ ticket.event.discount.percentage }}% con código <span class="badge bg-info text-dark">{{ ticket.event.discount.code }}</span>
+                </p>
+                <p>
+                    <strong>Importe total:</strong>
+                    <span class="text-decoration-line-through text-danger">${{ total_amount }}</span>
+                    <span class="ms-2 text-success fw-bold">${{ discounted_total|floatformat:2 }}</span>
+                </p>
+            {% else %}
+                <p><strong>Importe total:</strong> ${{ total_amount }}</p>
+            {% endif %}
             <p><strong>Evento:</strong> {{ ticket.event.title }}</p>
             <p><strong>Descripción Evento:</strong> {{ ticket.event.description }}</p>
             <p><strong>Fecha de Compra:</strong> {{ ticket.buy_date|date:"d/m/Y" }}</p>
