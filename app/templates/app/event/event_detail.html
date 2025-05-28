@@ -85,7 +85,7 @@
             <div class="card-body">
                 <h4 class="d-flex align-items-center gap-2">
                     Calificaciones y Reseñas
-                    {% if avg_rating_over_5 %}
+                    {% if user_is_organizer and avg_rating_over_5 %}
                         <span class="badge bg-light border border-secondary text-dark d-flex align-items-center gap-1 ms-2"
                             style="font-size:1rem; padding: 0.25em 0.6em;">
                             <strong style="font-size:1.1rem;">{{ avg_rating_over_5|floatformat:1 }}</strong>
