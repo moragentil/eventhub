@@ -224,12 +224,15 @@
 <script>
     document.addEventListener("DOMContentLoaded", function () {
 
-        document.querySelector("form").addEventListener("submit", (e) => {
-            const ratingValue = parseInt(createInput.value, 10);
-            if (!ratingValue || ratingValue < 1 || ratingValue > 10) {
-                e.preventDefault();
-                alert("Por favor selecciona una calificación válida.");
-            }
+        document.addEventListener("DOMContentLoaded", function () {
+            const ratingForm = document.querySelector("#rating-form");
+            ratingForm.addEventListener("submit", (e) => {
+                const ratingValue = parseInt(document.querySelector("#rating-input").value, 10);
+                if (!ratingValue || ratingValue < 1 || ratingValue > 10) {
+                    e.preventDefault();
+                    alert("Por favor selecciona una calificación válida.");
+                }
+            });
         });
         
         document.querySelectorAll(".toggle-edit").forEach(btn => {

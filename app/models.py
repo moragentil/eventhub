@@ -569,14 +569,14 @@ from django.utils import timezone
 
 class Rating(models.Model):
     title = models.CharField(max_length=200)
-    text = models.TextField()
+    text = models.TextField(blank=True)  # Permitir que el campo sea opcional
     rating = models.IntegerField()
     created_at = models.DateTimeField()
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
 
     def __str__(self):
-        return f"Rating for {self.event.title} by {self.user.username}"
+        return f"{self.title} - {self.rating}/10"
 
     @classmethod
     def validate(cls, title, text, rating, event):
@@ -587,9 +587,8 @@ class Rating(models.Model):
         elif len(title) > 200:
             errors["title"] = "El título no puede exceder los 200 caracteres."
 
-        if not text:
-            errors["text"] = "El comentario es obligatorio."
-        elif len(text.strip()) == 0:
+        # Eliminar la validación que hace obligatorio el campo text
+        if text and len(text.strip()) == 0:
             errors["text"] = "El comentario no puede estar vacío."
 
         if rating is None:
@@ -597,7 +596,7 @@ class Rating(models.Model):
         elif not isinstance(rating, int):
             errors["rating"] = "La calificación debe ser un número entero."
         elif rating < 1 or rating > 10:
-            errors["rating"] = "La calificación debe estar entre 1 y 5."
+            errors["rating"] = "La calificación debe estar entre 1 y 10."
 
         if event is None:
             errors["event"] = "Debe asociar el comentario a un evento."
