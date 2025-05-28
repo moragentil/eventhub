@@ -596,7 +596,7 @@ class Rating(models.Model):
         elif not isinstance(rating, int):
             errors["rating"] = "La calificación debe ser un número entero."
         elif rating < 1 or rating > 10:
-            errors["rating"] = "La calificación debe estar entre 1 y 10."
+            errors["rating"] = "La calificación debe estar entre 1 y 5."
 
         if event is None:
             errors["event"] = "Debe asociar el comentario a un evento."

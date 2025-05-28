@@ -747,7 +747,7 @@ def rating_create(request, event_id):
         messages.error(request, "Ocurrió un error al crear la calificación.")
         return redirect("event_detail", id=event_id)
 
-    return render(request, "app/rating/rating_form.html", {"event": event})
+    return render(request, "app/event/event_detail.html", {"event": event})
 
 
 @login_required
