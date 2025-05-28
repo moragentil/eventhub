@@ -11,7 +11,7 @@ from app.test.test_e2e.base import BaseE2ETest
 class EventRatingE2ETest(BaseE2ETest):
     def setUp(self):
         super().setUp()
-        # Crear usuario organizador
+
         self.organizer = User.objects.create_user(
             username="organizer_rating_test",
             email="organizer_rating@example.com",
