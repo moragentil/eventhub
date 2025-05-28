@@ -92,6 +92,20 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% if user_is_organizer %}
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-ticket text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Entradas Vendidas</h6>
+                            <p class="mb-0">{{ tickets_sold }} de {{ event.venue.capacity }}</p>
+                            {% if demand_message %}
+                                <p class="text-warning mb-0">{{ demand_message }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="d-flex align-items-center mb-3">
                         <div class="bg-light rounded-circle p-2 me-3">
                             <i class="bi bi-info-circle text-primary"></i>

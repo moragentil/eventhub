@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
 from .models import Event, User, Ticket, TicketType,Rating
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Sum
 from .decorators import organizer_required
 from django.contrib import messages
 from django.http import JsonResponse
@@ -104,7 +104,25 @@ def event_detail(request, id):
     comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
     user_is_organizer = getattr(request.user, "is_organizer", False)
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
+    
+    tickets_sold = Ticket.objects.filter(event=event).aggregate(total=Sum("quantity"))["total"] or 0
+    demand_message = None
+    if event.venue and event.venue.capacity:
+        occupancy_rate = (tickets_sold / event.venue.capacity) * 100
+        if occupancy_rate > 90:
+            demand_message = "Alta demanda (más del 90% de la ocupación)"
+        elif occupancy_rate < 10:
+            demand_message = "Baja demanda (menos del 10% de la ocupación)"
+            
+    return render(request, "app/event/event_detail.html", 
+        {
+            "event": event, "time" : time,
+            "user_is_organizer": user_is_organizer, 
+            "comments": comments,
+            "tickets_sold": tickets_sold,
+            "demand_message": demand_message,
+        },
+    )
 
 
 @login_required
