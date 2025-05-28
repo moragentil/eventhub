@@ -110,6 +110,17 @@ def event_detail(request, id):
     time = timezone.now()
     user_is_organizer = getattr(request.user, "is_organizer", False)
     
+    countdown = None
+    if not request.user.is_organizer:
+        now = timezone.now()
+        delta = event.scheduled_at - now
+        if delta.total_seconds() > 0:
+            countdown = {
+                "days": delta.days,
+                "hours": delta.seconds // 3600,
+                "minutes": (delta.seconds % 3600) // 60,
+            }
+    
     tickets_sold = Ticket.objects.filter(event=event).aggregate(total=Sum("quantity"))["total"] or 0
     demand_message = None
     if event.venue and event.venue.capacity:
@@ -130,6 +141,7 @@ def event_detail(request, id):
         "app/event/event_detail.html",
         {
             "event": event,
+            "countdown": countdown,
             "time": time,
             "user_is_organizer": user_is_organizer,
             "comments": comments,
