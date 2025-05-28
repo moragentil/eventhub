@@ -118,12 +118,22 @@ def event_detail(request, id):
             demand_message = "Alta demanda (más del 90% de la ocupación)"
         elif occupancy_rate < 10:
             demand_message = "Baja demanda (menos del 10% de la ocupación)"
-            
-    return render(request, "app/event/event_detail.html", 
+
+    avg_rating_over_5 = None
+    if hasattr(event, "rating") and event.rating.exists():
+        avg_rating = event.rating.aggregate(Avg("rating"))["rating__avg"]
+        if avg_rating is not None:
+            avg_rating_over_5 = avg_rating / 2
+
+    return render(
+        request,
+        "app/event/event_detail.html",
         {
-            "event": event, "time" : time,
-            "user_is_organizer": user_is_organizer, 
+            "event": event,
+            "time": time,
+            "user_is_organizer": user_is_organizer,
             "comments": comments,
+            "avg_rating_over_5": avg_rating_over_5,
             "tickets_sold": tickets_sold,
             "demand_message": demand_message,
         },

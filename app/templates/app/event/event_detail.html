@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block content %}
 <div class="container">
@@ -126,94 +127,99 @@
                 </div>
             </div>
         </div>
-        
-        {% if event.rating.exists %}
-            <div class="mt-5">
-                <h4>Calificaciones y Reseñas ({{ event.rating.count }})</h4>
+
+        <div class="card mt-5">
+            <div class="card-body">
+                <h4 class="d-flex align-items-center gap-2">
+                    Calificaciones y Reseñas
+                    {% if user_is_organizer and avg_rating_over_5 %}
+                        <span class="badge bg-light border border-secondary text-dark d-flex align-items-center gap-1 ms-2"
+                            style="font-size:1rem; padding: 0.25em 0.6em;">
+                            <strong style="font-size:1.1rem;">{{ avg_rating_over_5|floatformat:1 }}</strong>
+                            <i class="bi bi-star-fill text-warning" style="font-size:1.1rem;"></i>
+                            <span style="font-size:0.95rem;">({{ event.rating.count }} Reseñas)</span>
+                        </span>
+                    {% endif %}
+                </h4>
                 <div class="list-group">
                     {% for rating in event.rating.all %}
-                    <div class="list-group-item" id="rating-{{ rating.id }}">
-                        <div class="d-flex w-100 justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">{{ rating.user.username }}</h6>
-                                <small>{{ rating.created_at|date:"d M Y, H:i" }}</small>
+                        <div class="list-group-item border-0 border-bottom rounded-0 position-relative" id="rating-{{ rating.id }}">
+                            <div class="d-flex align-items-center mb-1">
+                                <img src="{% static 'images/default_profile_picture.png' %}" alt="User" class="rounded-circle me-2" width="35">
+                                <div class="d-flex flex-column w-100">
+                                    <h6 class="mb-1">{{ rating.user.username }}</h6>
+                                    <small class="text-muted">{{ rating.created_at|date:"d M Y, H:i" }}</small>
+                                </div>
+                                {% if rating.user == user or user_is_organizer %}
+                                <div class="dropdown ms-auto">
+                                    <button class="btn btn-link text-muted p-0" type="button" id="dropdownMenuRating{{ rating.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuRating{{ rating.id }}">
+                                        <li>
+                                            <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.querySelector(`#edit-form-{{ rating.id }}`).classList.remove('d-none'); document.querySelector(`.rating-display-{{ rating.id }}`).classList.add('d-none');">Editar</a>
+                                        </li>
+                                        <li>
+                                            <form method="POST" action="{% url 'rating_delete' rating.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="dropdown-item text-danger" onclick="return confirm('¿Estás seguro de que deseas eliminar esta Calificación?');">Eliminar</button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                                {% endif %}
                             </div>
-                            {% if rating.user == user %}
-                            <button class="btn btn-sm btn-outline-secondary toggle-edit" data-id="{{ rating.id }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            {% endif %}
-                        </div>
-                    
-                        <div class="rating-display-{{ rating.id }}">
-                            <p class="fw-bold mb-1">{{ rating.title }}</p>
-                            <p class="mb-1">{{ rating.text }}</p>
-                            <div class="mb-2">
-                                <div class="rating-display-static mb-2">
-                                    <div id="static-star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
+                            <div class="rating-display-{{ rating.id }}">
+                                <h5 class="mb-1">{{ rating.title }}</h5>
+                                <p class="mb-1">{{ rating.text }}</p>
+                                <div class="mb-2">
+                                    <div class="rating-display-static mb-2">
+                                        <div id="static-star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    
-                        <form method="POST" action="{% url 'rating_edit' rating.id %}" class="rating-edit-form d-none" id="edit-form-{{ rating.id }}">
-                            {% csrf_token %}
-                            <div class="mb-2">
-                                <input type="text" name="title" class="form-control mb-2" value="{{ rating.title }}">
-                                <textarea name="text" class="form-control mb-2">{{ rating.text }}</textarea>
-                                <input type="hidden" name="rating" id="rating-input-{{ rating.id }}" value="{{ rating.rating }}">
-                                <div id="star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
-                            </div>
-                            <button type="submit" class="btn btn-sm btn-success">Guardar</button>
-                            <button type="button" class="btn btn-sm btn-secondary cancel-edit" data-id="{{ rating.id }}">Cancelar</button>
-                        </form>
-                        {% if user_is_organizer or rating.user == user %}
-                            <form method="POST" action="{% url 'rating_delete' rating.id %}" class="d-inline">
+                            <form method="POST" action="{% url 'rating_edit' rating.id %}" class="rating-edit-form d-none" id="edit-form-{{ rating.id }}">
                                 {% csrf_token %}
-                                    <button 
-                                    type="submit" 
-                                    onclick="return confirm('¿Estás seguro de que deseas eliminar esta Calificacion?');"
-                                    class="btn btn-sm btn-outline-danger">Eliminar</button>
-                                    
+                                <div class="mb-2">
+                                    <input type="text" name="title" class="form-control mb-2" value="{{ rating.title }}">
+                                    <textarea name="text" class="form-control mb-2">{{ rating.text }}</textarea>
+                                    <input type="hidden" name="rating" id="rating-input-{{ rating.id }}" value="{{ rating.rating }}">
+                                    <div id="star-rating-{{ rating.id }}" class="d-flex gap-1"></div>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success">Guardar</button>
+                                <button type="button" class="btn btn-sm btn-secondary cancel-edit" data-id="{{ rating.id }}">Cancelar</button>
                             </form>
-                        {% endif %}
-                    </div>
+                        </div>
                     {% endfor %}
+                    <div class="list-group-item border-0">
+                        <form method="POST" action="{% url 'rating_create' event.id %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Título de la reseña *</label>
+                                <input type="text" name="title" class="form-control" id="title" value="{{ data.title|default:'' }}">
+                                {% if errors.title %}<div class="text-danger">{{ errors.title }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Tu calificación *</label>
+                                <div id="star-rating" class="d-flex align-items-center gap-1" style="cursor: pointer;">
+                                    {% for i in "12345" %}
+                                        <i class="bi bi-star text-warning fs-4 star" data-index="{{ forloop.counter }}"></i>
+                                    {% endfor %}
+                                </div>
+                                <input type="hidden" name="rating" id="rating-input" value="{{ data.rating|default:'0' }}">
+                                {% if errors.rating %}<div class="text-danger">{{ errors.rating }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="text" class="form-label">Tu reseña</label>
+                                <textarea name="text" class="form-control" id="text" rows="3">{{ data.text|default:'' }}</textarea>
+                                {% if errors.text %}<div class="text-danger">{{ errors.text }}</div>{% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-primary">Enviar calificación</button>
+                        </form>
+                    </div>
                 </div>
             </div>
-        {% endif %}
-
-        <div class="mt-5">
-            <h4>Agregar Calificación</h4>
-            <form method="POST" action="{% url 'rating_create' event.id %}" class="border rounded p-3">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="title" class="form-label">Título de la reseña</label>
-                    <input type="text" name="title" class="form-control" id="title" value="{{ data.title|default:'' }}">
-                    {% if rating_errors.title %}<div class="text-danger">{{ rating_errors.title }}</div>{% endif %}
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Tu calificación</label>
-                    <div id="star-rating" class="d-flex align-items-center gap-1" style="cursor: pointer;">
-                        {% for i in "12345" %}
-                            <i class="bi bi-star text-warning fs-4 star" data-index="{{ forloop.counter }}"></i>
-                        {% endfor %}
-                    </div>
-                    <input type="hidden" name="rating" id="rating-input" value="{{ data.rating|default:'0' }}">
-                    {% if rating_errors.rating %}<div class="text-danger">{{ rating_errors.rating }}</div>{% endif %}
-                </div>
-                
-                <div class="mb-3">
-                    <label for="text" class="form-label">Tu reseña (opcional)</label>
-                    <textarea name="text" class="form-control" id="text" rows="3">{{ data.text|default:'' }}</textarea>
-                    {% if rating_errors.text %}<div class="text-danger">{{ rating_errors.text }}</div>{% endif %}
-                </div>
-                <button type="submit" class="btn btn-primary">Enviar calificación</button>
-            </form>
         </div>
-
-        {% if not event.rating.exists %}
-            <p class="text-muted mt-3">Aún no hay calificaciones. ¡Sé el primero en dejar una!</p>
-        {% endif %}
 
         <div class="mt-1 mb-4">
             {% include "app/comment/comments_event.html" %}
