@@ -104,7 +104,17 @@ def event_detail(request, id):
     comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
     user_is_organizer = getattr(request.user, "is_organizer", False)
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
+    countdown = None
+    if not request.user.is_organizer:
+        now = timezone.now()
+        delta = event.scheduled_at - now
+        if delta.total_seconds() > 0:
+            countdown = {
+                "days": delta.days,
+                "hours": delta.seconds // 3600,
+                "minutes": (delta.seconds % 3600) // 60,
+            }
+    return render(request, "app/event/event_detail.html", {"event": event, "countdown": countdown, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
 
 
 @login_required
