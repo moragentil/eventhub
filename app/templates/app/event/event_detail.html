@@ -11,6 +11,13 @@
         {% endif %}
         <div class="d-flex justify-content-between align-items-center">
             <h1>{{ event.title }}</h1>
+
+            {% if countdown %}
+                <div class="alert alert-warning mt-3">
+                    Faltan {{ countdown.days }} días,{{ countdown.hours }} hora/s y {{ countdown.minutes }} minuto/s para el evento.
+                </div>
+            {% endif %}
+
             <div class="hstack gap-2">
                 {% if event.scheduled_at > time %}
                     <a href="{% url 'ticket_create' event.id %}" class="btn btn-success">
