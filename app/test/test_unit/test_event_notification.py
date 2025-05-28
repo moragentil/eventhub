@@ -9,6 +9,7 @@ class EventNotificationTest(TestCase):
         self.venue1 = Venue.objects.create(name="Venue 1", address="1", city="Ciudad1", capacity=100)
         self.venue2 = Venue.objects.create(name="Venue 2", address="2", city="Ciudad2", capacity=200)
         self.category = Category.objects.create(name="Test Category", is_active=True)
+        self.state = "activo"
         self.event = Event.objects.create(
             title="Test Event",
             description="A test event",
@@ -16,6 +17,7 @@ class EventNotificationTest(TestCase):
             organizer=self.organizer,
             venue=self.venue1,
             category=self.category,
+            state=self.state,
         )
         self.user.tickets.create(event=self.event, quantity=2)
 
@@ -31,6 +33,7 @@ class EventNotificationTest(TestCase):
             price_vip=None,
             venue=None,
             category=None,
+            state=None,
         )
         self.assertTrue(success, f"Errores inesperados: {errors}")
         notif = Notification.objects.filter(user=self.user, title=self.event.title).last()
@@ -48,6 +51,7 @@ class EventNotificationTest(TestCase):
             price_vip=None,
             venue=self.venue2,
             category=None,
+            state=None,
         )
         self.assertTrue(success, f"Errores inesperados: {errors}")
         notif = Notification.objects.filter(user=self.user, title=self.event.title).last()

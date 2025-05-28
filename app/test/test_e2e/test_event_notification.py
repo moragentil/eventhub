@@ -41,5 +41,5 @@ class EventNotificationE2ETest(BaseE2ETest):
         self.page.goto(f"{self.live_server_url}/notifications/")
 
         expect(self.page.get_by_text("Evento E2E", exact=True)).to_be_visible()
-        expect(self.page.get_by_text("Fecha antigua")).to_be_visible()
-        expect(self.page.get_by_text("Fecha actualizada")).to_be_visible()
+        expect(self.page.get_by_text("Fecha antigua:")).to_be_visible()
+        expect(self.page.get_by_text("Fecha actualizada:")).to_be_visible()
