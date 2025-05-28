@@ -7,10 +7,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from decimal import Decimal
 from .models import Event, User, Ticket, TicketType,Rating
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Sum
 from .decorators import organizer_required
 from django.contrib import messages
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Favorite
+from django.http import JsonResponse
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Discount, Favorite
+
 
 
 def register(request):
@@ -79,6 +81,9 @@ def events(request):
     venue_id = request.GET.get("venue")
     category_id = request.GET.get("category")
 
+    if not date and not venue_id and not category_id:
+        events = events.filter(scheduled_at__gte=timezone.now())
+
     if date:
         events = events.filter(scheduled_at__date=date)
     if venue_id:
@@ -104,7 +109,25 @@ def event_detail(request, id):
     comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
     user_is_organizer = getattr(request.user, "is_organizer", False)
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
+    
+    tickets_sold = Ticket.objects.filter(event=event).aggregate(total=Sum("quantity"))["total"] or 0
+    demand_message = None
+    if event.venue and event.venue.capacity:
+        occupancy_rate = (tickets_sold / event.venue.capacity) * 100
+        if occupancy_rate > 90:
+            demand_message = "Alta demanda (más del 90% de la ocupación)"
+        elif occupancy_rate < 10:
+            demand_message = "Baja demanda (menos del 10% de la ocupación)"
+            
+    return render(request, "app/event/event_detail.html", 
+        {
+            "event": event, "time" : time,
+            "user_is_organizer": user_is_organizer, 
+            "comments": comments,
+            "tickets_sold": tickets_sold,
+            "demand_message": demand_message,
+        },
+    )
 
 
 @login_required
@@ -132,6 +155,12 @@ def event_form(request, id=None):
     event = None
     errors = {}
 
+    if id:
+        event = get_object_or_404(Event, pk=id)
+        if event.state == "finalizado":
+            messages.error(request, "No se pueden editar eventos finalizados.")
+            return redirect("events")
+
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
         description = request.POST.get("description", "").strip()
@@ -141,6 +170,19 @@ def event_form(request, id=None):
         price_vip = request.POST.get("price_vip")
         venue_id = request.POST.get("venue")
         category_id = request.POST.get("category")
+        discount_code = request.POST.get("discount_code", "").strip()
+        discount_percentage = request.POST.get("discount_percentage", "").strip()
+        state = request.POST.get("state", "activo")
+        original_date = request.POST.get("original_date")
+        original_time = request.POST.get("original_time")
+
+        fecha_cambiada = (
+            original_date != date or original_time != time
+        )
+
+        if id and fecha_cambiada and state not in ["cancelado", "reprogramado"]:
+            state = "reprogramado"
+
 
         try:
             scheduled_at = timezone.make_aware(
@@ -163,39 +205,82 @@ def event_form(request, id=None):
         venue = get_object_or_404(Venue, pk=venue_id)
         category = get_object_or_404(Category, pk=category_id) if category_id else None
 
+        discount = None
+        if discount_code and discount_percentage:
+            # Validar longitud y tipo
+            if len(discount_code) > 10:
+                errors["discount_code"] = "El código no puede tener más de 10 caracteres."
+            try:
+                discount_pct = int(discount_percentage)
+                if discount_pct <= 0 or discount_pct > 100:
+                    errors["discount_percentage"] = "El porcentaje debe estar entre 1 y 100."
+            except Exception:
+                errors["discount_percentage"] = "El porcentaje debe ser un número válido."
+            # Crear o buscar descuento
+            if not errors.get("discount_code") and not errors.get("discount_percentage"):
+                discount_obj, created = Discount.objects.get_or_create(
+                    code=discount_code,
+                    defaults={"percentage": discount_pct}
+                )
+                if not created:
+                    discount_obj.percentage = discount_pct
+                    discount_obj.save()
+                discount = discount_obj
+
         if id is None:
             success, validation_errors = Event.new(
                 title, description, scheduled_at, user,
                 price_general, price_vip, venue,
-                category=category
+                category=category,
+                discount=discount,
+                state=state,
             )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento creado exitosamente!")
         else:
             event = get_object_or_404(Event, pk=id)
+            previous_state = event.state
             success, validation_errors = event.update(
-                title, description, scheduled_at, user,
-                price_general, price_vip, venue,
-                category
+                title=title,
+                description=description,
+                scheduled_at=scheduled_at,
+                organizer=event.organizer,
+                price_general=price_general,
+                price_vip=price_vip,
+                venue=venue,
+                category=category,
+                discount=discount,
+                state=state
             )
+            if not success:
+                errors.update(validation_errors)
+            else:
+                messages.success(request, "Evento actualizado exitosamente!")
         
-        if not success:
-            errors = validation_errors
-            categories = Category.objects.filter(is_active=True)
-            return render(
-                request,
-                "app/event/event_form.html",
-                {
-                    "event": event,
-                    "venues": venues,
-                    "errors": errors,
-                    "editing": id is not None,
-                    "user_is_organizer": user.is_organizer,
-                    "categories": categories
-                },
-            )
+            if state in ["cancelado"] and previous_state != state:
+                users = User.objects.filter(tickets__event=event).distinct()
+                if users.exists():
+                    if state == "cancelado":
+                        description = f"El evento {event.title} ha sido cancelado."
+                    Notification.new(
+                        users,
+                        title = f"El evento {event.title} ha sido {state}.",
+                        message=description,
+                        priority="High"
+                    )
+
         return redirect("events")
 
     elif id:
         event = get_object_or_404(Event, pk=id)
+        state = event.state
+        if event.state == "finalizado" or event.state == "cancelado":
+            messages.error(request, f"No se pueden editar eventos {event.state}s.")
+            return redirect("events")
+    else:
+        state = "activo"
         
     categories = Category.objects.filter(is_active=True)
 
@@ -205,16 +290,22 @@ def event_form(request, id=None):
         {
             "event": event,
             "venues": venues,
+            "state": state,
             "errors": errors,
             "editing": id is not None,
             "user_is_organizer": user.is_organizer,
-            "categories": categories},
+            "categories": categories
+        },
     )
 
 
 @login_required
 def ticket_create(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
+
+    if event.state in ["agotado", "finalizado", "cancelado"]:
+        messages.error(request, f"No se pueden comprar entradas para este evento porque esta {event.state}.")
+        return redirect("event_detail", id=event.pk)
 
     if event.scheduled_at < timezone.now():
         messages.error(request, "No se puede comprar una entrada de un evento que ya pasó.")
@@ -227,6 +318,7 @@ def ticket_create(request, event_id):
     if request.method == "POST":
         quantity = request.POST.get("quantity")
         type = request.POST.get("type")
+        discount_code_input = request.POST.get("discount_code", "").strip()
         data = request.POST
 
         try:
@@ -238,6 +330,17 @@ def ticket_create(request, event_id):
             unit_price = event.price_vip
         elif type == "General":
             unit_price = event.price_general
+
+        # Aplicar descuento si corresponde
+        discount_applied = False
+        if unit_price is not None and discount_code_input and event.discount:
+            if discount_code_input.lower() == event.discount.code.lower():
+                percentage = event.discount.percentage or Decimal("0.00")
+                discount_amount = unit_price * (percentage / 100)
+                unit_price = max(Decimal("0.00"), unit_price - discount_amount)
+                discount_applied = True
+            else:
+                messages.error(request, "Código de descuento inválido.")
 
         if unit_price is not None:
             total_amount = unit_price * quantity_int
@@ -259,6 +362,7 @@ def ticket_create(request, event_id):
                     "total_amount": total_amount,
                     "mostrar_encuesta": True,
                     "ticket_id": ticket.pk,
+                    "discount_applied": discount_applied,
                 },
             )
         else:
@@ -313,16 +417,30 @@ def organizer_ticket_list(request):
 @login_required
 def ticket_detail(request, ticket_id):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    event = ticket.event
+    unit_price = event.price_vip if ticket.type == "VIP" else event.price_general
+    total_amount = unit_price * ticket.quantity
 
-    if ticket.type == 'VIP':
-        total_amount = ticket.quantity * ticket.event.price_vip
-    else:
-        total_amount = ticket.quantity * ticket.event.price_general
+    discount_applied = False
+    discounted_total = None
 
-    return render(request, 'app/ticket/ticket_detail.html', {
-        'ticket': ticket,
-        'total_amount': total_amount,
-    })
+    if event.discount and event.discount.code and event.discount.percentage:
+        percentage = event.discount.percentage
+        discount_amount = unit_price * (percentage / 100)
+        discounted_unit_price = unit_price - discount_amount
+        discounted_total = discounted_unit_price * ticket.quantity
+        discount_applied = True
+
+    return render(
+        request,
+        "app/ticket/ticket_detail.html",
+        {
+            "ticket": ticket,
+            "total_amount": total_amount,
+            "discount_applied": discount_applied,
+            "discounted_total": discounted_total,
+        },
+    )
 
 
 @login_required
@@ -1052,3 +1170,20 @@ def favorite_remove(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     Favorite.objects.filter(user=request.user, event=event).delete()
     return redirect("events")
+
+@login_required
+def validate_discount(request):
+    code = request.GET.get('code', '')
+    event_id = request.GET.get('event_id')
+    
+    try:
+        event = Event.objects.get(pk=event_id)
+        if event.discount and event.discount.code.lower() == code.lower():
+            return JsonResponse({
+                'valid': True,
+                'percentage': float(event.discount.percentage)
+            })
+    except Event.DoesNotExist:
+        pass
+    
+    return JsonResponse({'valid': False})

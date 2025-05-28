@@ -167,6 +167,13 @@ class Category(models.Model):
 
 
 class Event(models.Model):
+    states = [
+        ("activo", "Activo"),
+        ("cancelado", "Cancelado"),
+        ("reprogramado", "Reprogramado"),
+        ("agotado", "Agotado"),
+        ("finalizado", "Finalizado"),
+    ]
     title = models.CharField(max_length=200)
     description = models.TextField()
     scheduled_at = models.DateTimeField()
@@ -177,13 +184,16 @@ class Event(models.Model):
     price_vip = models.DecimalField(max_digits=8, decimal_places=2, null=False, default=Decimal('100.00'))
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="events", null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
+    discount = models.ForeignKey('Discount', on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
+    state = models.CharField(max_length=20, choices=states, default="activo")
+
 
 
     def __str__(self):
         return self.title
 
     @classmethod
-    def validate(cls, title, description, scheduled_at, price_general, price_vip, category):
+    def validate(cls, title, description, scheduled_at, price_general, price_vip, category, state):
         errors = {}
 
         if title == "":
@@ -211,8 +221,8 @@ class Event(models.Model):
         return errors
 
     @classmethod
-    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
-        errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category)
+    def new(cls, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, discount=None, state="activo"):
+        errors = Event.validate(title, description, scheduled_at, price_general, price_vip, category, state)
 
         if len(errors.keys()) > 0:
             return False, errors
@@ -225,12 +235,14 @@ class Event(models.Model):
             price_general=price_general,
             price_vip=price_vip,
             venue=venue,
-            category=category
+            category=category,
+            discount=discount
         )
 
         return True, {}
 
-    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category):
+
+    def update(self, title, description, scheduled_at, organizer, price_general, price_vip, venue, category, state, discount=None):
         old_scheduled_at = self.scheduled_at
         old_venue = self.venue
 
@@ -238,7 +250,8 @@ class Event(models.Model):
                             scheduled_at or self.scheduled_at,
                             price_general or self.price_general,
                             price_vip or self.price_vip,
-                            category or self.category)
+                            category or self.category,
+                            state or self.state)
 
         if errors:
             return False, errors
@@ -259,6 +272,11 @@ class Event(models.Model):
             self.venue = venue
         if category is not None:
             self.category = category
+        if discount is not None:
+            self.discount = discount
+        if state is not None:
+            self.state = state
+
 
         self.save()
 
@@ -310,6 +328,8 @@ class Ticket(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
     used = models.BooleanField(default=False)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
@@ -338,6 +358,10 @@ class Ticket(models.Model):
     @classmethod
     def new(cls, quantity, type, user, event):
         errors = cls.validate(quantity, type, event)
+
+        if event.state in ["cancelado", "finalizado", "agotado"]:
+            errors["state"] = "No se pueden comprar entradas para este evento."
+            return None, errors
 
         capacity = event.venue.capacity if event.venue and event.venue.capacity else 0
         sold = sum(ticket.quantity for ticket in event.tickets.all())
@@ -545,14 +569,14 @@ from django.utils import timezone
 
 class Rating(models.Model):
     title = models.CharField(max_length=200)
-    text = models.TextField()
+    text = models.TextField(blank=True)  # Permitir que el campo sea opcional
     rating = models.IntegerField()
     created_at = models.DateTimeField()
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rating")
 
     def __str__(self):
-        return f"Rating for {self.event.title} by {self.user.username}"
+        return f"{self.title} - {self.rating}/10"
 
     @classmethod
     def validate(cls, title, text, rating, event):
@@ -563,9 +587,8 @@ class Rating(models.Model):
         elif len(title) > 200:
             errors["title"] = "El título no puede exceder los 200 caracteres."
 
-        if not text:
-            errors["text"] = "El comentario es obligatorio."
-        elif len(text.strip()) == 0:
+        # Eliminar la validación que hace obligatorio el campo text
+        if text and len(text.strip()) == 0:
             errors["text"] = "El comentario no puede estar vacío."
 
         if rating is None:
@@ -573,7 +596,7 @@ class Rating(models.Model):
         elif not isinstance(rating, int):
             errors["rating"] = "La calificación debe ser un número entero."
         elif rating < 1 or rating > 10:
-            errors["rating"] = "La calificación debe estar entre 1 y 5."
+            errors["rating"] = "La calificación debe estar entre 1 y 10."
 
         if event is None:
             errors["event"] = "Debe asociar el comentario a un evento."
@@ -789,3 +812,76 @@ class Favorite(models.Model):
     class Meta:
         unique_together = ('user', 'event')
 
+class Discount(models.Model):
+    code = models.CharField(max_length=30, unique=True)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+
+    def __str__(self):
+        return f"Discount {self.code} - Percentage: {self.percentage}%"
+    
+    @classmethod
+    def validate(cls, code, percentage):
+        errors = {}
+
+        if not code or code.strip() == "":
+            errors["code"] = "El código de descuento es requerido."
+        elif len(code.strip()) > 30:
+            errors["code"] = "El código no puede tener más de 30 caracteres."
+        elif cls.objects.filter(code__iexact=code.strip()).exists():
+            errors["code"] = "Ya existe un descuento con este código."
+
+        if percentage is None:
+            errors["percentage"] = "El porcentaje es requerido."
+        else:
+            try:
+                pct = Decimal(percentage)
+                if pct <= 0 or pct > 100:
+                    errors["percentage"] = "El porcentaje debe estar entre 1 y 100."
+            except:
+                errors["percentage"] = "El porcentaje debe ser un número válido."
+
+        return errors
+    
+    @classmethod
+    def new(cls, code, percentage):
+        errors = cls.validate(code, percentage)
+
+        if errors:
+            return False, errors
+
+        discount = cls.objects.create(code=code.strip(), percentage=Decimal(percentage))
+        return True, discount
+    
+    @classmethod
+    def update(cls, discount_id, code=None, percentage=None):
+        try:
+            discount = cls.objects.get(pk=discount_id)
+        except cls.DoesNotExist:
+            return False, {"error": "Descuento no encontrado."}
+
+        if code is None:
+            code = discount.code
+        if percentage is None:
+            percentage = discount.percentage
+
+        errors = cls.validate(code, percentage)
+
+        if code.strip().lower() == discount.code.lower():
+            errors.pop("code", None)
+
+        if errors:
+            return False, errors
+
+        discount.code = code.strip()
+        discount.percentage = Decimal(percentage)
+        discount.save()
+        return True, discount
+
+    @classmethod
+    def delete_discount(cls, discount_id):
+        try:
+            discount = cls.objects.get(pk=discount_id)
+            discount.delete()
+            return True, None
+        except cls.DoesNotExist:
+            return False, {"error": "Descuento no encontrado."}

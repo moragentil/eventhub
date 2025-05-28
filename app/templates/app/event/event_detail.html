@@ -80,6 +80,47 @@
                             <h6 class="mb-0">Precios</h6>
                             <p class="mb-0">General: ${{ event.price_general }}</p>
                             <p class="mb-0">VIP: ${{ event.price_vip }}</p>
+                            {% if user_is_organizer and event.discount %}
+                                <div class="mt-2">
+                                    <span class="badge bg-info text-dark">
+                                        Código de descuento: {{ event.discount.code }}
+                                    </span>
+                                    <span class="badge bg-info text-dark ms-2">
+                                        {{ event.discount.percentage }}% OFF
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if user_is_organizer %}
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-ticket text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Entradas Vendidas</h6>
+                            <p class="mb-0">{{ tickets_sold }} de {{ event.venue.capacity }}</p>
+                            {% if demand_message %}
+                                <p class="text-warning mb-0">{{ demand_message }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-light rounded-circle p-2 me-3">
+                            <i class="bi bi-info-circle text-primary"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">Estado</h6>
+                            <p class="m-0
+                                {% if event.state == 'activo' %}
+                                {% elif event.state == 'cancelado' %}
+                                {% elif event.state == 'reprogramado' %}
+                                {% elif event.state == 'agotado' %}
+                                {% elif event.state == 'finalizado' %}
+                                {% endif %}">
+                                {{ event.get_state_display }}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -183,12 +224,15 @@
 <script>
     document.addEventListener("DOMContentLoaded", function () {
 
-        document.querySelector("form").addEventListener("submit", (e) => {
-            const ratingValue = parseInt(createInput.value, 10);
-            if (!ratingValue || ratingValue < 1 || ratingValue > 10) {
-                e.preventDefault();
-                alert("Por favor selecciona una calificación válida.");
-            }
+        document.addEventListener("DOMContentLoaded", function () {
+            const ratingForm = document.querySelector("#rating-form");
+            ratingForm.addEventListener("submit", (e) => {
+                const ratingValue = parseInt(document.querySelector("#rating-input").value, 10);
+                if (!ratingValue || ratingValue < 1 || ratingValue > 10) {
+                    e.preventDefault();
+                    alert("Por favor selecciona una calificación válida.");
+                }
+            });
         });
         
         document.querySelectorAll(".toggle-edit").forEach(btn => {
