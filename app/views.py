@@ -11,7 +11,8 @@ from django.db.models import Count, Avg, Sum
 from .decorators import organizer_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Discount
+from .models import Event, User, RefundRequest, Venue, Ticket, TicketType, Notification, Comment, Category, SatisfactionSurvey, Discount, Favorite
+
 
 
 def register(request):
@@ -90,11 +91,15 @@ def events(request):
     if category_id:
         events = events.filter(category_id=category_id)
 
+    favorite_event_ids = Favorite.objects.filter(user=request.user).values_list("event_id", flat=True)
+    favorite_events = Event.objects.filter(id__in=favorite_event_ids)
+
     return render(request, "app/event/events.html", {
         "events": events,
         "venues": venues,
         "categories": categories,
         "user_is_organizer": request.user.is_organizer,
+        "favorite_events": favorite_events,
     })
 
 
@@ -1153,6 +1158,18 @@ def survey_dashboard(request):
         "promedio_clarity": promedio_clarity,
         "promedio_satisfaction": promedio_satisfaction,
     })
+
+@login_required
+def favorite_create(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    Favorite.objects.get_or_create(user=request.user, event=event)
+    return redirect("events")
+
+@login_required
+def favorite_remove(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    Favorite.objects.filter(user=request.user, event=event).delete()
+    return redirect("events")
 
 @login_required
 def validate_discount(request):

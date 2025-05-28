@@ -64,7 +64,24 @@
         <tbody>
             {% for event in events %}
                 <tr>
-                    <td>{{ event.title }}</td>
+                    <td class="d-flex align-items-center gap-2">
+                        <form action="{% url 'favorite_remove' event.id %}" method="POST" style="display: inline;" class="favorite-form">
+                            {% csrf_token %}
+                            {% if event in favorite_events %}
+                                <button type="submit" class="favorite-btn text-primary" title="Quitar de favoritos" style="background: none; border: none;">
+                                    <i class="bi bi-heart-fill"></i>
+                                </button>
+                            {% else %}
+                        </form>
+                        <form action="{% url 'favorite_create' event.id %}" method="POST" style="display: inline;" class="favorite-form">
+                            {% csrf_token %}
+                                <button type="submit" class="favorite-btn text-secondary" title="Agregar a favoritos" style="background: none; border: none;">
+                                    <i class="bi bi-heart"></i>
+                                </button>
+                            {% endif %}
+                        </form>
+                        {{ event.title }}
+                    </td>                    
                     <td>{{ event.scheduled_at|date:"d/m/Y H:i" }}</td>
                     <td>{{ event.venue.name }}</td>
                     <td>{{ event.organizer }}</td>
