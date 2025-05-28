@@ -56,5 +56,7 @@ urlpatterns = [
     path("tickets/<int:ticket_id>/survey/", views.submit_survey, name="submit_survey"),
     path("surveys/", views.survey_dashboard, name="survey_dashboard"),
     path("event/<int:event_id>/favorite/", views.favorite_create, name="favorite_create"),
-    path("event/<int:event_id>/unfavorite/", views.favorite_remove, name="favorite_remove"),
+    path("event/<int:event_id>/unfavorite/", views.favorite_remove, name="favorite_remove")
+    path("validate-discount/", views.validate_discount, name="validate_discount"),
+
 ]

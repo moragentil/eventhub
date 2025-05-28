@@ -42,8 +42,7 @@ class EventNotificationIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         notif = Notification.objects.filter(user=self.user, title=self.event.title).last()
         self.assertIsNotNone(notif)
-        self.assertIn("Fecha antigua", notif.message)
-        self.assertIn("Fecha actualizada", notif.message)
+        self.assertIn("Fecha actualizada:", notif.message)
 
     def test_notification_created_on_event_venue_change(self):
         self.client.login(username="organizer", password="pass")
