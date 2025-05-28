@@ -100,7 +100,24 @@ def event_detail(request, id):
     comments = Comment.objects.filter(event=event).select_related("user").order_by("-created_at")
     time = timezone.now()
     user_is_organizer = getattr(request.user, "is_organizer", False)
-    return render(request, "app/event/event_detail.html", {"event": event, "time" : time,"user_is_organizer": user_is_organizer, "comments": comments})
+
+    avg_rating_over_5 = None
+    if hasattr(event, "rating") and event.rating.exists():
+        avg_rating = event.rating.aggregate(Avg("rating"))["rating__avg"]
+        if avg_rating is not None:
+            avg_rating_over_5 = avg_rating / 2
+
+    return render(
+        request,
+        "app/event/event_detail.html",
+        {
+            "event": event,
+            "time": time,
+            "user_is_organizer": user_is_organizer,
+            "comments": comments,
+            "avg_rating_over_5": avg_rating_over_5,
+        },
+    )
 
 
 @login_required
