@@ -25,7 +25,8 @@ class EventModelTest(TestCase):
             organizer=self.organizer,
             price_general=Decimal("50.00"),
             price_vip=Decimal("100.00"),
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
         self.assertEqual(event.title, "Evento de prueba")
         self.assertEqual(event.description, "Descripción del evento de prueba")
@@ -41,7 +42,8 @@ class EventModelTest(TestCase):
             scheduled_at,
             Decimal("50.00"),
             Decimal("100.00"),
-            self.category
+            self.category,
+            state = "activo"
         )
         self.assertEqual(errors, {})
 
@@ -53,7 +55,8 @@ class EventModelTest(TestCase):
             scheduled_at,
             Decimal("50.00"),
             Decimal("100.00"),
-            self.category
+            self.category,
+            state = "activo",
         )
         self.assertIn("title", errors)
         self.assertEqual(errors["title"], "Por favor ingrese un titulo")
@@ -66,7 +69,8 @@ class EventModelTest(TestCase):
             scheduled_at,
             Decimal("50.00"),
             Decimal("100.00"),
-            self.category
+            self.category,
+            state = "activo"
         )
         self.assertIn("description", errors)
         self.assertEqual(errors["description"], "Por favor ingrese una descripcion")
@@ -81,7 +85,8 @@ class EventModelTest(TestCase):
             price_general=Decimal("60.00"),
             price_vip=Decimal("120.00"),
             venue=None,
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
 
         self.assertTrue(success)
@@ -103,7 +108,8 @@ class EventModelTest(TestCase):
             price_general=Decimal("50.00"),
             price_vip=Decimal("100.00"),
             venue=None,
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
 
         self.assertFalse(success)
@@ -122,7 +128,8 @@ class EventModelTest(TestCase):
             organizer=self.organizer,
             price_general=Decimal("50.00"),
             price_vip=Decimal("100.00"),
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
 
         event.update(
@@ -133,7 +140,8 @@ class EventModelTest(TestCase):
             price_general=Decimal("60.00"),
             price_vip=Decimal("120.00"),
             venue=None,
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
 
         updated_event = Event.objects.get(pk=event.pk)
@@ -149,7 +157,8 @@ class EventModelTest(TestCase):
             organizer=self.organizer,
             price_general=Decimal("50.00"),
             price_vip=Decimal("100.00"),
-            category=self.category
+            category=self.category,
+            state = "activo",
         )
 
         original_title = event.title
@@ -164,7 +173,8 @@ class EventModelTest(TestCase):
             price_general=None,
             price_vip=None,
             venue=None,
-            category=None
+            category=None,
+            state=None
         )
 
         updated_event = Event.objects.get(pk=event.pk)

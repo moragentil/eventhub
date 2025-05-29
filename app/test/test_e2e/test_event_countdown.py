@@ -24,10 +24,8 @@ class CountdownE2ETest(BaseE2ETest):
 
     def test_countdown_display(self):
         self.login_user("testuser", "12345")
-        self.page.goto(f"{self.live_server_url}/events/1/")
+        self.page.goto(f"{self.live_server_url}/events/{self.event.id}/")
         countdown_text = self.page.locator(".alert-warning")
         expect(countdown_text).to_be_visible()
         expect(countdown_text).to_contain_text("Faltan")
-
-        
 

@@ -30,7 +30,9 @@ class EventFilterE2ETest(BaseE2ETest):
         # Login usando el método auxiliar
         self.login_user(self.user.username, "password123")
         self.page.goto(f"{self.live_server_url}/events/")
+        self.page.screenshot(path="test_event_filter.png", full_page=True)
         # Verifica que el evento futuro aparece
         expect(self.page.get_by_text("Evento Futuro")).to_be_visible()
         # Verifica que el evento pasado NO aparece
+        self.page.screenshot(path="test_event_filter.png", full_page=True)
         expect(self.page.get_by_text("Evento Pasado")).to_have_count(0)

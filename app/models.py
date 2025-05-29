@@ -236,7 +236,8 @@ class Event(models.Model):
             price_vip=price_vip,
             venue=venue,
             category=category,
-            discount=discount
+            discount=discount,
+            state=state,
         )
 
         return True, {}

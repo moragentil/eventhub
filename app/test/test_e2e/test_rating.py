@@ -12,17 +12,11 @@ class EventRatingE2ETest(BaseE2ETest):
     def setUp(self):
         super().setUp()
 
-        self.organizer = User.objects.create_user(
-            username="organizer_rating_test",
-            email="organizer_rating@example.com",
-            password="password123",
-            is_organizer=True,
-        )
-
         self.rater1 = User.objects.create_user(
             username="rater1_rating_test",
             email="rater1_rating@example.com",
             password="password123",
+            is_organizer=True,
         )
         self.rater2 = User.objects.create_user(
             username="rater2_rating_test",
@@ -49,7 +43,7 @@ class EventRatingE2ETest(BaseE2ETest):
             title="Event For Rating Average Test",
             description="An event to test average rating display.",
             scheduled_at=timezone.now() + datetime.timedelta(days=5),
-            organizer=self.organizer,
+            organizer=self.rater1,
             price_general=Decimal("50.00"),
             price_vip=Decimal("100.00"),
             venue=self.venue,
