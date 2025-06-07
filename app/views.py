@@ -131,10 +131,13 @@ def event_detail(request, id):
             demand_message = "Baja demanda (menos del 10% de la ocupación)"
 
     avg_rating_over_5 = None
-    if hasattr(event, "rating") and event.rating.exists():
-        avg_rating = event.rating.aggregate(Avg("rating"))["rating__avg"]
+    ratings = getattr(event, "rating", None)
+
+    if ratings and ratings.exists():
+        avg_rating = ratings.aggregate(Avg("rating"))["rating__avg"]
         if avg_rating is not None:
             avg_rating_over_5 = avg_rating / 2
+
 
     return render(
         request,
@@ -245,7 +248,7 @@ def event_form(request, id=None):
                     defaults={"percentage": discount_pct}
                 )
                 if not created:
-                    discount_obj.percentage = discount_pct
+                    discount_obj.percentage = Decimal(discount_pct)
                     discount_obj.save()
                 discount = discount_obj
 
@@ -461,6 +464,7 @@ def ticket_detail(request, ticket_id):
             "total_amount": total_amount,
             "discount_applied": discount_applied,
             "discounted_total": discounted_total,
+            "ticket_is_refunded": ticket.is_refunded
         },
     )
 
@@ -505,7 +509,7 @@ def ticket_update(request, ticket_id):
 
 @login_required
 def user_ticket_list(request):
-    tickets = Ticket.objects.filter(user=request.user)
+    tickets = Ticket.objects.filter(user=request.user, is_refunded=False)
     return render(request, "app/ticket/user_ticket_list.html", {"tickets": tickets})
 
 
@@ -528,6 +532,9 @@ def approve_refund_request(request, refund_id):
         refund.status = 'aprobado'
         refund.approval_date = timezone.now()
         refund.save()
+        if refund.ticket:
+            refund.ticket.is_refunded = True
+            refund.ticket.save()
         messages.success(request, "Solicitud aprobada correctamente.")
     return redirect('refund_requests')
 
@@ -667,6 +674,10 @@ def venue_form(request, id=None):
                 "venue": venue_instance,
                 "form_data": form_data
             })
+        
+        if not venue_instance:
+            messages.error(request, "Ocurrió un error al guardar el lugar.")
+            return redirect("venue")
 
         messages.success(request, "Lugar guardado exitosamente!")
         return redirect("venue_detail", id=venue_instance.pk)
@@ -758,7 +769,7 @@ def rating_delete(request, rating_id):
         rating.delete()
         messages.success(request, "Calificación eliminada correctamente.")
     
-    return redirect("event_detail", id=rating.event.id)
+    return redirect("event_detail", id=rating.event.pk)
 
 
 @login_required
@@ -767,7 +778,7 @@ def rating_edit(request, rating_id):
 
     if rating.user != request.user:
         messages.error(request, "No tenés permiso para editar esta calificación.")
-        return redirect("event_detail", id=rating.event.id)
+        return redirect("event_detail", id=rating.event.pk)
 
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
@@ -786,7 +797,7 @@ def rating_edit(request, rating_id):
         else:
             messages.error(request, "Error al actualizar la calificación.")
 
-    return redirect("event_detail", id=rating.event.id)
+    return redirect("event_detail", id=rating.event.pk)
 
 @login_required
 def user_rating_list(request):
@@ -924,30 +935,21 @@ def notification_form(request, id=None):
                 "selected_priority": priority,
             }
             return render(request, "app/notification/notification_form.html", context)
-        
-    if id:
-        all_users_count = User.objects.filter(is_organizer=False).count()
-        notification_users_count = notification_instance.user.count()
-        
-        selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
-        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
-        selected_priority = notification_instance.priority
-    else:
-        selected_recipient_type = "all"
-        selected_specific_user_id = None
-        selected_priority = "low"
+    
+    selected_recipient_type = "all"
+    selected_specific_user_id = None
+    selected_priority = "low"
 
-    if id:
+    if notification_instance:
         all_users_count = User.objects.filter(is_organizer=False).count()
-        notification_users_count = notification_instance.user.count()
-        
+        notification_users_count = notification_instance.user.count() if notification_instance.user.exists() else 0
+
         selected_recipient_type = "all" if notification_users_count == all_users_count else "specific"
-        selected_specific_user_id = notification_instance.user.first().id if notification_users_count == 1 else None
-        selected_priority = notification_instance.priority
-    else:
-        selected_recipient_type = "all"
-        selected_specific_user_id = None
-        selected_priority = "low"
+
+        first_user = notification_instance.user.first()
+        selected_specific_user_id = first_user.id if notification_users_count == 1 and first_user else None
+
+        selected_priority = getattr(notification_instance, "priority", "low")
 
     context = {
         "notification": notification_instance if id else {},
@@ -1084,7 +1086,7 @@ def comment_detail(request, comment_id):
 @login_required
 def comment_delete(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
-    event_id = comment.event.id
+    event_id = comment.event.pk
 
     if request.user.is_organizer:
         if comment.event.organizer != request.user:
@@ -1112,7 +1114,7 @@ def comment_edit(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
     if comment.user != request.user:
         messages.error(request, "No tienes permiso para editar este comentario.")
-        return redirect("event_detail", id=comment.event.id)
+        return redirect("event_detail", id=comment.event.pk)
 
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
@@ -1121,15 +1123,15 @@ def comment_edit(request, comment_id):
         errors = Comment.validate(title, text, comment.event)
         if errors:
             messages.error(request, "Por favor corrige los errores del formulario.")
-            return redirect("event_detail", id=comment.event.id)
+            return redirect("event_detail", id=comment.event.pk)
 
         comment.title = title
         comment.text = text
         comment.save()
         messages.success(request, "Comentario actualizado correctamente.")
-        return redirect("event_detail", id=comment.event.id)
+        return redirect("event_detail", id=comment.event.pk)
 
-    return redirect("event_detail", id=comment.event.id)
+    return redirect("event_detail", id=comment.event.pk)
 
 @login_required
 def submit_survey(request, ticket_id):

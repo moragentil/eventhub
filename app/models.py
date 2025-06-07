@@ -187,8 +187,6 @@ class Event(models.Model):
     discount = models.ForeignKey('Discount', on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
     state = models.CharField(max_length=20, choices=states, default="activo")
 
-
-
     def __str__(self):
         return self.title
 
@@ -330,7 +328,7 @@ class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="tickets")
     used = models.BooleanField(default=False)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-
+    is_refunded = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Ticket for {self.event.title} by {self.user.username}"
