@@ -144,23 +144,16 @@
         </div>
         <div class="modal-footer">
             <a href="{% url 'submit_survey' ticket_id %}" class="btn btn-primary">Sí, completar encuesta</a>
-            <a href="{% url 'user_ticket_list' %}" class="btn btn-secondary" onclick="noMostrarEncuesta()">No, gracias</a>
+            <a href="{% url 'user_ticket_list' %}" class="btn btn-secondary">No, gracias</a>
         </div>
     </div>
   </div>
 </div>
 
 <script>
-    function noMostrarEncuesta() {
-        localStorage.setItem('encuestaMostrada_{{ ticket_id }}', 'true');
-    }
-
     window.onload = function () {
-        const encuestaKey = 'encuestaMostrada_{{ ticket_id }}';
-        if (!localStorage.getItem(encuestaKey)) {
-            const modal = new bootstrap.Modal(document.getElementById('surveyPromptModal'));
-            modal.show();
-        }
+        const modal = new bootstrap.Modal(document.getElementById('surveyPromptModal'));
+        modal.show();
     };
 </script>
 {% endif %}
