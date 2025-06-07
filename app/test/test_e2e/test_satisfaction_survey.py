@@ -52,5 +52,4 @@ class SatisfactionSurveyE2ETest(BaseE2ETest):
         self.page.click("label[for='satisfaction_5']")
         self.page.fill('textarea[name="comment"]', "Excelente todo")
         self.page.get_by_role("button", name="Enviar").click()
-        
-
+        expect(self.page).to_have_url(f"{self.live_server_url}/events/")
