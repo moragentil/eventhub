@@ -40,7 +40,7 @@ jobs:
 
       - name: Ejecutar tests Django (unitarios e integración)
         run: |
-          python manage.py test test/test_unit tests/test_integration
+          python manage.py test app/test/test_unit app/test/test_integration
 
   e2e:
     runs-on: ubuntu-latest
@@ -62,4 +62,4 @@ jobs:
 
       - name: Ejecutar tests E2E
         run: |
-          pytest tests/e2e/
+          python manage.py test app/test/test_e2e
