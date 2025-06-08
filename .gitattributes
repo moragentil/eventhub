@@ -1,0 +1,5 @@
+# Asegura que los scripts shell usen LF
+*.sh text eol=lf
+
+# Normaliza todos los archivos de texto (LF en repositorio, CRLF en Windows si corresponde)
+* text=auto
