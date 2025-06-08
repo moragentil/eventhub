@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+  unit-integration-tests:
+    runs-on: ubuntu-latest
+    name: Tests Unitarios e Integración
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+
+      - name: Ejecutar tests Django (unitarios e integración)
+        run: |
+          python manage.py test tests/test_unit tests/test_integration
+
+  e2e:
+    runs-on: ubuntu-latest
+    name: Tests End-to-End
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          pip install pytest playwright
+          playwright install
+
+      - name: Ejecutar tests E2E
+        run: |
+          pytest tests/e2e/
