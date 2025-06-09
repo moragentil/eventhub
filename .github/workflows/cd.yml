@@ -81,20 +81,20 @@ jobs:
           image: ${{ secrets.DOCKERHUB_USERNAME }}/eventhub:${{ github.ref_name }}
           format: spdx-json
           output-file: sbom.spdx.json
-
+  
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.spdx.json
-
+  
   deploy-render:
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production
     
     steps:
-      - name: Deploy to Render
+      - name: Deploy and wait for Render
         uses: actions/github-script@v6
         with:
           script: |
@@ -112,19 +112,13 @@ jobs:
             if (!deployResponse.ok) {
               const error = await deployResponse.text();
               core.setFailed(`Deploy failed: ${error}`);
+              return;
             }
 
             const deployData = await deployResponse.json();
-            console.log('Deploy initiated:', deployData);
-            
-            // Guardar el deploy ID para seguimiento
-            core.setOutput('deploy-id', deployData.id);
+            const deployId = deployData.id;
+            console.log(`Deploy initiated. ID: ${deployId}`);
 
-      - name: Wait for deployment
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const deployId = '${{ steps.deploy.outputs.deploy-id }}';
             const maxWaitTime = 10 * 60 * 1000; // 10 minutos
             const pollInterval = 30 * 1000; // 30 segundos
             const startTime = Date.now();
@@ -132,7 +126,9 @@ jobs:
             while (Date.now() - startTime < maxWaitTime) {
               const response = await fetch(`https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/${deployId}`, {
                 headers: {
-                  'Authorization': 'Bearer ${{ secrets.RENDER_API_KEY }}'
+                  'Authorization': 'Bearer ${{
+                    secrets.RENDER_API_KEY
+                  }}`
                 }
               });
 
