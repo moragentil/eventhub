@@ -21,8 +21,6 @@ mkdir -p staticfiles media
 echo "Recolectando archivos estáticos"
 python manage.py collectstatic --noinput --clear
 
-exec gunicorn eventhub.wsgi:application --bind 0.0.0.0:8000
-
 # Finalmente, ejecutamos el comando que viene después en el Dockerfile
 echo "Iniciando servidor de desarrollo"
 exec "$@"
