@@ -95,6 +95,7 @@ jobs:
     
     steps:
       - name: Deploy and wait for Render
+        id: deploy
         uses: actions/github-script@v6
         with:
           script: |
