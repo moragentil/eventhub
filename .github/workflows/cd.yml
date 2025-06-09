@@ -76,19 +76,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ secrets.DOCKERHUB_USERNAME }}/eventhub:${{ github.ref_name }}
-          format: spdx-json
-          output-file: sbom.spdx.json
-  
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom.spdx.json
   
   deploy-render:
     needs: build-and-push
