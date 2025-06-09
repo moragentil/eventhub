@@ -185,6 +185,9 @@ def event_form(request, id=None):
         if event.state == "finalizado":
             messages.error(request, "No se pueden editar eventos finalizados.")
             return redirect("events")
+        if event.state == "cancelado":
+            messages.error(request, "No se pueden editar eventos cancelados.")
+            return redirect("events")
 
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
