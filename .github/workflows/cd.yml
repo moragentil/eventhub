@@ -1,8 +1,8 @@
-name: Entrega Continua
-
+name: cd
+# Este workflow  se ejecuta cuando:
+# - El workflow llamado "ci" finaliza correctamente en la rama 'main'
+# Depende exclusivamente de la Integración Continua
 on:
-  release:
-    types: [published]
   workflow_run:
     workflows: ["ci"]
     branches: [main]
@@ -10,30 +10,31 @@ on:
       - completed
 
 jobs:     
+  # Este job se encarga de configurar la imagen en DockerHub
   build-and-push:
-    runs-on: ubuntu-latest
-    outputs:
+    runs-on: ubuntu-latest  # Este job se ejecuta en una máquina virtual con Ubuntu
+    outputs:  # Se definen salidas que pueden usarse en otros jobs
       image-tag: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
-    
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Clona el repositorio
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3  # Configura Docker Buildx (para builds avanzados y multiplataforma)
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3  # Se loguea en Docker Hub con credenciales secretas
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Usuario almacenado en GitHub Secrets
+          password: ${{ secrets.DOCKERHUB_TOKEN }}  # Token secreto
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v5  # Extrae metadatos para etiquetar la imagen Docker
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/eventhub
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/eventhub  # Nombre de la imagen a generar
           tags: |
             type=ref,event=tag
             type=raw,value=latest
@@ -44,29 +45,31 @@ jobs:
 
       - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v5  # Construye y sube la imagen Docker a Docker Hub
         with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+          context: .  # Usa el directorio raíz como contexto de construcción
+          platforms: linux/amd64,linux/arm64  # Construye para múltiples arquitecturas
+          push: true  # Sube la imagen al registry
+          tags: ${{ steps.meta.outputs.tags }}  # Usa las etiquetas generadas previamente
+          labels: ${{ steps.meta.outputs.labels }}  # Usa los labels definidos
+          cache-from: type=gha  # Usa caché de GitHub Actions para acelerar builds
           cache-to: type=gha,mode=max
-  
+  # Este job se ejecuta solo si build-and-push terminó correctamente
+  # Se encarga de deployar la aplicación en Render
   deploy-render:
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: production
+    environment: production # Entorno de despliegue
   
     steps:
       - name: Deploy to Render
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }} # Clave de API de Render
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }} # ID del servicio a desplegar
+        # Llama a la API de Render para iniciar el despliegue del servicio
         run: |
           echo "Iniciando despliegue en Render..."
-  
+          
           curl -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
