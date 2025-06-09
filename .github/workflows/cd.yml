@@ -27,7 +27,7 @@ jobs:
             for (const checkName of requiredChecks) {
               const check = checks.check_runs.find(c => c.name === checkName);
               if (!check || check.conclusion !== 'success') {
-                core.setFailed(`Check "${checkName}" must pass before deployment`);
+                core.setFailed("Check must pass before deployment");
               }
             }
   build-and-push:
